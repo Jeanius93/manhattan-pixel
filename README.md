@@ -40,7 +40,7 @@ Die Seite lädt `data/manhattan.json` nach, braucht also einen kleinen Webserver
 
 Die Seite läuft ohne Server-Code direkt über GitHub Pages:
 Repo → Settings → Pages → Source „Deploy from a branch“ → Zweig wählen, Ordner `/ (root)` → Save.
-Danach ist das Spiel unter `https://<benutzername>.github.io/manhatten-pixel/` erreichbar.
+Danach ist das Spiel unter `https://<benutzername>.github.io/manhattan-pixel/` erreichbar.
 
 ## Lizenz der Kartendaten
 
