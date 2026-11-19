@@ -8,7 +8,8 @@ Manhattan als frei befahrbare Open World im Pixel-Art-Stil, im Browser.
 - Realistische Oberflächen: Backstein (mit Feuertreppen), Kalkstein, Art déco, Beton, Glasfassaden, Läden im Erdgeschoss
 - Sonne mit Schatten, Dunst in der Ferne, Bäume, parkende Autos, Ampelmasten, Wassertürme auf den Dächern
 - Mit einem gelben Taxi durch die Straßenschluchten fahren oder mit dem Helikopter darüber fliegen (Taste H oder Knopf oben)
-- Fließender Verkehr, Straßenlaternen, Hydranten
+- Fließender Verkehr, Fußgänger, grüne Straßenschilder an jeder Kreuzung, U-Bahn-Eingänge, Straßenlaternen, Hydranten
+- Stadt als Insel mit Wasser rundherum und Ufer-Silhouetten am Horizont (ca. 2,5 × 4 km)
 
 **Wichtig:** Straßenraster und Gebäude sind in diesem Prototyp noch *ausgedacht* (Midtown-ähnlich).
 Der nächste große Schritt ist die echte 1:1-Stadt aus OpenStreetMap und den NYC-Gebäudedaten.

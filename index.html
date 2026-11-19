@@ -62,10 +62,10 @@ window.__started = false;
    ===================================================================== */
 const AV_PITCH = 250, AV_W = 30;   // Avenues laufen N-S, ca. 250 m auseinander
 const ST_PITCH = 80,  ST_W = 18;   // Streets laufen O-W, ca. 80 m auseinander
-const NA = 9, NS = 26;
+const NA = 10, NS = 50;   // ca. 2,5 km x 4 km
 const W = NA * AV_PITCH, D = NS * ST_PITCH;
-const AVENUES = ['11th Ave','10th Ave','9th Ave','8th Ave','7th Ave','6th Ave','5th Ave','Madison Ave','Park Ave','Lexington Ave'];
-const FIRST_ST = 34;
+const AVENUES = ['11th Ave','10th Ave','9th Ave','8th Ave','7th Ave','6th Ave','5th Ave','Madison Ave','Park Ave','Lexington Ave','3rd Ave'];
+const FIRST_ST = 14;
 let _s = 4242; const rnd = () => (_s = (_s * 16807) % 2147483647) / 2147483647;
 const pick = a => a[Math.floor(rnd() * a.length)];
 
@@ -216,9 +216,9 @@ document.body.appendChild(renderer.domElement);
 renderer.debug.onShaderError = (gl, prog, vs, fs) => showErr('Shader-Fehler: ' + (gl.getShaderInfoLog(fs) || gl.getShaderInfoLog(vs) || gl.getProgramInfoLog(prog)));
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(66, 1, 0.5, 2200);
+const camera = new THREE.PerspectiveCamera(66, 1, 0.5, 9000);
 const HAZE = new THREE.Color('#c3d0dc');
-scene.fog = new THREE.FogExp2(HAZE, 0.0011);
+scene.fog = new THREE.FogExp2(HAZE, 0.00028);   // weite Sicht, leichter Dunst
 
 const hemi = new THREE.HemisphereLight(new THREE.Color('#cfe0ff'), new THREE.Color('#8c8070'), 1.1);
 scene.add(hemi);
@@ -226,7 +226,7 @@ const SUN_DIR = new THREE.Vector3(0.55, 0.78, 0.30).normalize();
 const sun = new THREE.DirectionalLight(new THREE.Color('#fff2de'), 2.5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
-const SH = 230; Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 10, far: 1400 });
+const SH = 320; Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 10, far: 1400 });
 sun.shadow.bias = -0.0015; sun.shadow.normalBias = 2.5;
 scene.add(sun, sun.target);
 
@@ -289,6 +289,7 @@ const groundMat = worldMat(new THREE.MeshLambertMaterial({ color: 0xffffff }), '
     if (ez > 3.6 && ez < 4.0 && ex > 1.0) c = vec3(0.62);
     if (ex > 3.6 && ex < 4.0 && ez > 1.0) c = vec3(0.62);
   }
+  if (vWN.y < 0.5) c = vec3(0.30, 0.28, 0.25);            // Kaimauer
   diffuseColor.rgb *= c;
 `);
 
@@ -306,7 +307,7 @@ const sidewalkMat = worldMat(new THREE.MeshLambertMaterial({ color: 0xffffff }),
    ===================================================================== */
 const blocks = [], bldg = [], cornices = [], roofStuff = [], waterTowers = [], trees = [], parked = [], poles = [];
 const blockRect = (i, j) => ({ x0: i * AV_PITCH + AV_W / 2, x1: (i + 1) * AV_PITCH - AV_W / 2, z0: j * ST_PITCH + ST_W / 2, z1: (j + 1) * ST_PITCH - ST_W / 2 });
-const cx = W * 0.55, cz = D * 0.45;
+const CL = [[W * 0.55, D * 0.62], [W * 0.45, D * 0.12]];   // zwei Hochhaus-Zentren (Midtown, Downtown)
 
 function facadeFor(h) {
   const r = rnd();
@@ -323,8 +324,9 @@ function addBuilding(x, z, w, d, h, fac, y0, tint, uoff, ground) {
 
 for (let i = 0; i < NA; i++) for (let j = 0; j < NS; j++) {
   const r = blockRect(i, j); blocks.push(r);
-  const distC = Math.hypot(((r.x0 + r.x1) / 2 - cx) / W, ((r.z0 + r.z1) / 2 - cz) / D);
-  const cluster = Math.max(0.2, 1.15 - distC * 1.9);
+  const mx0 = (r.x0 + r.x1) / 2, mz0 = (r.z0 + r.z1) / 2;
+  const distC = Math.min(...CL.map(([qx, qz]) => Math.hypot((mx0 - qx) / 2500, (mz0 - qz) / 2500)));
+  const cluster = Math.max(0.2, 1.15 - distC * 1.6);
   const sw = 4.5, bx0 = r.x0 + sw, bx1 = r.x1 - sw, bz0 = r.z0 + sw, bz1 = r.z1 - sw, depth = bz1 - bz0;
   // zwei Reihen (Nord/Süd) – Türme nehmen die volle Blocktiefe ein
   let x = bx0;
@@ -374,8 +376,25 @@ function instanced(geo, mat, list, setter, shadows = [true, true]) {
 }
 
 // Boden
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(W + 800, D + 800), groundMat);
-ground.rotation.x = -Math.PI / 2; ground.position.set(W / 2, 0, D / 2); ground.receiveShadow = true; scene.add(ground);
+const LAND = 22;   // Land reicht 22 m über die äußersten Straßenmitten hinaus
+const ground = new THREE.Mesh(new THREE.BoxGeometry(W + 2 * LAND, 4, D + 2 * LAND), groundMat);
+ground.position.set(W / 2, -2, D / 2); ground.receiveShadow = true; scene.add(ground);
+const water = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshPhongMaterial({ color: '#2d5670', specular: '#9fb6c4', shininess: 60 }));
+water.rotation.x = -Math.PI / 2; water.position.set(W / 2, -1.6, D / 2); water.receiveShadow = true; scene.add(water);
+{ // Ufer gegenüber (wie New Jersey und Brooklyn): niedrige Silhouetten am Horizont
+  const far = [];
+  for (const side of [-1, 1]) for (let z = -2500; z < D + 2500; z += 30 + rnd() * 40) {
+    const x = side < 0 ? -1300 - rnd() * 900 : W + 1100 + rnd() * 900;
+    far.push([x, z, 20 + rnd() * 50, 8 + Math.pow(rnd(), 3) * 140, 20 + rnd() * 50]);
+  }
+  const shore = [[-1250, D / 2, 1400, D + 6000], [W + 1050, D / 2, 1400, D + 6000]];
+  instanced(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: '#6f7a70' }), shore,
+    q => M.compose(V.set(q[0] + (q[0] < 0 ? -q[2] / 2 : q[2] / 2), 0, q[1]), Q.identity(), Sc.set(q[2], 2, q[3])), [false, false]);
+  const fg = new THREE.BoxGeometry(1, 1, 1); fg.translate(0, 0.5, 0);
+  const fm = instanced(fg, new THREE.MeshLambertMaterial({ color: 0xffffff }), far, q => M.compose(V.set(q[0], 0, q[1]), Q.identity(), Sc.set(q[2], q[3], q[4])), [false, false]);
+  const fc = ['#9a958c', '#8c8f94', '#a39488', '#b2aea4', '#7f8790'].map(c => new THREE.Color(c));
+  far.forEach((_, k) => fm.setColorAt(k, fc[k % fc.length]));
+}
 // Gehwege
 instanced(new THREE.BoxGeometry(1, 1, 1), sidewalkMat, blocks, r => M.compose(V.set((r.x0 + r.x1) / 2, 0.08, (r.z0 + r.z1) / 2), Q.identity(), Sc.set(r.x1 - r.x0, 0.16, r.z1 - r.z0)), [false, true]);
 // Gebäude
@@ -448,7 +467,7 @@ const skyMat = new THREE.ShaderMaterial({
       c += vec3(1.0, 0.9, 0.7) * (pow(s, 600.0) * 4.0 + pow(s, 12.0) * 0.15);
       gl_FragColor = vec4(c, 1.0); }`,
 });
-const sky = new THREE.Mesh(new THREE.SphereGeometry(2000, 32, 16), skyMat); scene.add(sky);
+const sky = new THREE.Mesh(new THREE.SphereGeometry(8000, 32, 16), skyMat); scene.add(sky);
 
 /* =====================================================================
    5) TAXI
@@ -529,12 +548,12 @@ const traffic = [];
 for (let ai = 0; ai <= NA; ai++) {                       // Avenues: Einbahnstraßen, abwechselnd nach Norden / Süden
   const dir = ai % 2 ? 1 : -1;
   for (const off of [-9, -5.4, -1.8, 1.8, 5.4, 9]) { const v = 9 + rnd() * 6;
-    for (let k = 0; k < 2; k++) traffic.push({ ax: 'z', c: ai * AV_PITCH + off, p: rnd() * (D + 200) - 100, dir, v, cur: v }); }
+    const n = 11; for (let k = 0; k < n; k++) traffic.push({ ax: 'z', c: ai * AV_PITCH + off, p: (k + rnd() * 0.6) / n * D, dir, v, cur: v }); }
 }
 for (let sj = 0; sj <= NS; sj++) {                       // Streets: einspurig zwischen den Parkreihen
   const dir = sj % 2 ? 1 : -1;
   for (const off of [-2, 2]) { const v = 7 + rnd() * 4;
-    for (let k = 0; k < 2; k++) traffic.push({ ax: 'x', c: sj * ST_PITCH + off, p: rnd() * (W + 200) - 100, dir, v, cur: v }); }
+    const n = 6; for (let k = 0; k < n; k++) traffic.push({ ax: 'x', c: sj * ST_PITCH + off, p: (k + rnd() * 0.6) / n * W, dir, v, cur: v }); }
 }
 const tBody = new THREE.BoxGeometry(1.8, 0.7, 4.4); tBody.translate(0, 0.62, 0);
 const tCab = new THREE.BoxGeometry(1.6, 0.55, 2.2); tCab.translate(0, 1.24, 0.2);
@@ -556,7 +575,7 @@ function updateTraffic(dt, ax, az) {
     const target = (along > 0 && along < 11 && side < 1.8) ? 0 : t.v;
     t.cur += (target - t.cur) * Math.min(1, (target < t.cur ? 4 : 1) * dt);
     t.p += t.dir * t.cur * dt;
-    const max = (t.ax === 'z' ? D : W) + 100; if (t.p > max) t.p -= max + 100; if (t.p < -100) t.p += max + 100;
+    const max = (t.ax === 'z' ? D : W) + 12; if (t.p > max) t.p -= max + 12; if (t.p < -12) t.p += max + 12;
     const yaw = t.ax === 'z' ? (t.dir < 0 ? 0 : Math.PI) : (t.dir > 0 ? -Math.PI / 2 : Math.PI / 2);
     TQ.setFromAxisAngle(UP, yaw);
     M.compose(TP.set(t.ax === 'z' ? t.c : t.p, 0, t.ax === 'z' ? t.p : t.c), TQ, TS1);
@@ -586,6 +605,113 @@ function updateTraffic(dt, ax, az) {
   const red = new THREE.MeshLambertMaterial({ color: '#b8231d' });
   instanced(hb, red, hyd, h => M.makeTranslation(h[0], 0, h[1])); instanced(hc, red, hyd, h => M.makeTranslation(h[0], 0, h[1]));
 }
+
+/* ---------- Grüne NYC-Straßenschilder an jeder Kreuzung ---------- */
+const stName = sj => `W ${FIRST_ST + (NS - sj)} St`;
+const avName = ai => AVENUES[Math.min(AVENUES.length - 1, ai)];
+{
+  const names = [...Array.from({ length: NA + 1 }, (_, i) => avName(i)), ...Array.from({ length: NS + 1 }, (_, j) => stName(j))];
+  const ROWS = names.length, RW = 512, RH = 64;
+  const cv = document.createElement('canvas'); cv.width = RW; cv.height = ROWS * RH;
+  const c = cv.getContext('2d');
+  names.forEach((n, r) => {
+    const y = (ROWS - 1 - r) * RH;
+    c.fillStyle = '#0d6b3c'; c.fillRect(0, y, RW, RH);
+    c.strokeStyle = '#f4f4ef'; c.lineWidth = 4; c.strokeRect(6, y + 6, RW - 12, RH - 12);
+    c.fillStyle = '#ffffff'; c.font = 'bold 40px "Helvetica Neue", Helvetica, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(n, RW / 2, y + RH / 2 + 2, RW - 40);
+  });
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const mat = new THREE.MeshLambertMaterial({ map: tex });
+  mat.onBeforeCompile = sh => {
+    sh.vertexShader = 'attribute float aRow;\n' + sh.vertexShader.replace('#include <uv_vertex>',
+      `#include <uv_vertex>\n vMapUv = vec2(vMapUv.x, (vMapUv.y + aRow) / ${ROWS.toFixed(1)});`);
+  };
+  const signs = [];   // [x, y, z, yaw, row]
+  for (let ai = 0; ai <= NA; ai++) for (let sj = 0; sj <= NS; sj++) {
+    const px2 = ai * AV_PITCH + AV_W / 2 + 0.8, pz2 = sj * ST_PITCH + ST_W / 2 + 0.8;   // Mast an der Blockecke
+    for (const back of [0, Math.PI]) {
+      signs.push([px2, 5.75, pz2 - 1.55, Math.PI / 2 + back, ai]);             // Avenue-Schild: parallel zur Avenue, ragt über die Street
+      signs.push([px2 - 1.55, 5.25, pz2, back, NA + 1 + sj]);                     // Street-Schild: parallel zur Street, ragt über die Avenue
+    }
+  }
+  const geo = new THREE.PlaneGeometry(3.0, 0.42);   // größer als im Original, damit man es im Spiel lesen kann
+  geo.setAttribute('aRow', new THREE.InstancedBufferAttribute(new Float32Array(signs.map(q => q[4])), 1));
+  instanced(geo, mat, signs, q => M.compose(V.set(q[0], q[1], q[2]), Q.setFromAxisAngle(UP, q[3]), Sc.set(1, 1, 1)), [false, true]);
+  const pole = new THREE.CylinderGeometry(0.08, 0.1, 7.2, 6); pole.translate(0, 3.6, 0);
+  instanced(pole, new THREE.MeshLambertMaterial({ color: '#2d3a30' }), signs.filter((_, k) => k % 4 === 0), q => M.makeTranslation(q[0], 0, q[2] + 1.55));
+}
+
+/* ---------- U-Bahn-Eingänge (grüne Laternen, Geländer) ---------- */
+{
+  const ent = [];
+  for (const r of blocks) if (rnd() < 0.3) ent.push([r.x0 + 1.6, r.z0 + 6.5]);
+  const rail = new THREE.MeshLambertMaterial({ color: '#1f3b2b' });
+  const side = new THREE.BoxGeometry(0.08, 1.0, 4.4); side.translate(0, 0.5, 0);
+  const backR = new THREE.BoxGeometry(1.5, 1.0, 0.08); backR.translate(0, 0.5, 2.2);
+  const post = new THREE.CylinderGeometry(0.06, 0.06, 2.6, 6); post.translate(0, 1.3, -2.2);
+  const globe = new THREE.SphereGeometry(0.22, 10, 8); globe.translate(0, 2.7, -2.2);
+  const hole = new THREE.BoxGeometry(1.4, 0.02, 4.3); hole.translate(0, 0.17, 0);
+  instanced(hole, new THREE.MeshLambertMaterial({ color: '#141414' }), ent, e => M.makeTranslation(e[0], 0, e[1]), [false, true]);
+  for (const sx of [-0.75, 0.75]) {
+    instanced(side, rail, ent, e => M.makeTranslation(e[0] + sx, 0, e[1]));
+    instanced(post, rail, ent, e => M.makeTranslation(e[0] + sx, 0, e[1]));
+    instanced(globe, new THREE.MeshBasicMaterial({ color: '#46c86a' }), ent, e => M.makeTranslation(e[0] + sx, 0, e[1]), [false, false]);
+  }
+  instanced(backR, rail, ent, e => M.makeTranslation(e[0], 0, e[1]));
+}
+
+/* ---------- Fußgänger ---------- */
+const peds = [];
+for (const r of blocks) for (let k = 0; k < 20; k++) {
+  const ins = 2.7 + rnd() * 1.1, w = r.x1 - r.x0 - 2 * ins, h = r.z1 - r.z0 - 2 * ins;
+  peds.push({ x0: r.x0 + ins, z0: r.z0 + ins, w, h, per: 2 * (w + h), s: rnd() * 2 * (w + h), dir: rnd() < 0.5 ? 1 : -1, v: 1.1 + rnd() * 0.6, ph: rnd() * 6.3 });
+}
+const pedParts = (() => {
+  const mk = (geo, cnt) => { const m = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: 0xffffff }), cnt); m.castShadow = false; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); return m; };
+  const leg = new THREE.BoxGeometry(0.15, 0.86, 0.17); leg.translate(0, -0.43, 0);
+  const arm = new THREE.BoxGeometry(0.11, 0.62, 0.13); arm.translate(0, -0.31, 0);
+  const torso = new THREE.BoxGeometry(0.42, 0.62, 0.24); torso.translate(0, 0.31, 0);
+  const head = new THREE.BoxGeometry(0.21, 0.24, 0.23); head.translate(0, 0.12, 0);
+  const P = { leg: mk(leg, peds.length * 2), arm: mk(arm, peds.length * 2), torso: mk(torso, peds.length), head: mk(head, peds.length) };
+  const shirts = ['#c0392b', '#2c3e50', '#ecf0f1', '#27ae60', '#8e44ad', '#d35400', '#34495e', '#f1c40f', '#7f8c8d', '#1abc9c', '#a0522d', '#111111'].map(c => new THREE.Color(c));
+  const pants = ['#1f2a44', '#2b2b2b', '#4a4a4a', '#5b4636', '#283b5b', '#c8b9a0'].map(c => new THREE.Color(c));
+  const skin = ['#f1c9a5', '#e0ac69', '#c68642', '#8d5524', '#5c3a21', '#ffdbac'].map(c => new THREE.Color(c));
+  peds.forEach((_, k) => {
+    const sh = shirts[Math.floor(rnd() * shirts.length)], pa = pants[Math.floor(rnd() * pants.length)], sk = skin[Math.floor(rnd() * skin.length)];
+    P.torso.setColorAt(k, sh); P.head.setColorAt(k, sk);
+    for (let q = 0; q < 2; q++) { P.leg.setColorAt(k * 2 + q, pa); P.arm.setColorAt(k * 2 + q, sh); }
+  });
+  return P;
+})();
+const PQ = new THREE.Quaternion(), PQ2 = new THREE.Quaternion(), PE = new THREE.Euler(0, 0, 0, 'YXZ'), PV = new THREE.Vector3(), POFF = new THREE.Vector3(), ONE = new THREE.Vector3(1, 1, 1);
+function updatePeds(dt, cxp, czp) {
+  peds.forEach((p, k) => {
+    p.s = (p.s + p.dir * p.v * dt + p.per) % p.per; p.ph += p.v * dt * 5.2;
+    const s = p.s; let x, z, yaw;
+    if (s < p.w) { x = p.x0 + s; z = p.z0; yaw = -Math.PI / 2; }
+    else if (s < p.w + p.h) { x = p.x0 + p.w; z = p.z0 + s - p.w; yaw = Math.PI; }
+    else if (s < 2 * p.w + p.h) { x = p.x0 + p.w - (s - p.w - p.h); z = p.z0 + p.h; yaw = Math.PI / 2; }
+    else { x = p.x0; z = p.z0 + p.h - (s - 2 * p.w - p.h); yaw = 0; }
+    if (p.dir < 0) yaw += Math.PI;
+    if (cxp !== null && (Math.abs(x - cxp) > 350 || Math.abs(z - czp) > 350)) return;      // weit weg: nicht neu berechnen
+    const sw = Math.sin(p.ph), bob = Math.abs(Math.cos(p.ph)) * 0.04;
+    PQ.setFromAxisAngle(UP, yaw);
+    M.compose(PV.set(x, 1.06 + bob, z), PQ, ONE); pedParts.torso.setMatrixAt(k, M);
+    M.compose(PV.set(x, 1.68 + bob, z), PQ, ONE); pedParts.head.setMatrixAt(k, M);
+    for (let q = 0; q < 2; q++) {
+      const sg = q ? 1 : -1;
+      PQ2.setFromEuler(PE.set(sw * 0.55 * sg, yaw, 0));
+      POFF.set(0.1 * sg, 0, 0).applyQuaternion(PQ);
+      M.compose(PV.set(x + POFF.x, 1.0 + bob, z + POFF.z), PQ2, ONE); pedParts.leg.setMatrixAt(k * 2 + q, M);
+      PQ2.setFromEuler(PE.set(-sw * 0.5 * sg, yaw, 0));
+      POFF.set(0.27 * sg, 0, 0).applyQuaternion(PQ);
+      M.compose(PV.set(x + POFF.x, 1.64 + bob, z + POFF.z), PQ2, ONE); pedParts.arm.setMatrixAt(k * 2 + q, M);
+    }
+  });
+  for (const m of Object.values(pedParts)) m.instanceMatrix.needsUpdate = true;
+}
+updatePeds(0, null, null);
 const S = { x: 5 * AV_PITCH + 7, z: 20 * ST_PITCH, yaw: 0, v: 0, steer: 0 };
 
 /* =====================================================================
@@ -610,7 +736,7 @@ const postMat = new THREE.ShaderMaterial({
       // Kante nur bei echtem Tiefensprung (2. Ableitung), nicht bei schräg gesehenen Flächen
       // 1/Tiefe ist auf Ebenen linear im Bild -> 2. Ableitung = 0, nur echte Kanten bleiben
       float e = max(abs(1.0/dl + 1.0/dr - 2.0/d), abs(1.0/dd + 1.0/du - 2.0/d)) * d;
-      if (e > 0.04 && d < 900.0) c *= mix(0.62, 0.9, smoothstep(80.0, 900.0, d));  // Pixel-Konturen
+      if (e > 0.04 && d < 2500.0) c *= mix(0.62, 0.92, smoothstep(80.0, 2500.0, d));  // Pixel-Konturen
       float L = 24.0; c = floor(c*L + bayer(pc)) / L;                // Farbstufen + Dithering
       gl_FragColor = vec4(c, 1.0);
     }`,
@@ -673,7 +799,7 @@ function blocked(x, z) {
       if (inX && !nearAvSide) return true;                        // parkende Autos
     }
   }
-  return x < -150 || z < -150 || x > W + 150 || z > D + 150;
+  return x < -LAND + 2 || z < -LAND + 2 || x > W + LAND - 2 || z > D + LAND - 2;   // Kaimauer
 }
 function streetName(x, z) {
   const ai = Math.round(x / AV_PITCH), sj = Math.round(z / ST_PITCH);
@@ -755,6 +881,7 @@ function frame() {
   camera.updateProjectionMatrix();
   sky.position.copy(camera.position);
   updateTraffic(dt, S.x, S.z);
+  updatePeds(dt, camera.position.x, camera.position.z);
 
   // Schattenkamera folgt dem aktiven Fahrzeug (in Texel-Schritten, damit Schatten nicht flimmern)
   const step = (2 * SH) / 4096, fxp = px0 + fx * 120, fzp = pz0 + fz * 120;
