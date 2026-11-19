@@ -5,12 +5,18 @@
   :root { --bg:#9fb4c8; --fg:#ffffff; --sign:#0f6b3a; --sign-edge:#ffffff; --panel:rgba(20,28,36,.72); --accent:#ffc61a; color-scheme: dark; }
   html,body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
-  canvas { position:fixed; inset:0; display:block; width:100vw; height:100vh; }
+  #hud, #help, #touch, #load { z-index:2; }
+  canvas { z-index:0; position:fixed; inset:0; display:block; width:100vw; height:100vh; }
   #hud { position:fixed; left:max(16px, env(safe-area-inset-left, 0px)); top:calc(12px + env(safe-area-inset-top, 0px));
     right:max(16px, env(safe-area-inset-right, 0px)); display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; pointer-events:none; }
   .sign { background:var(--sign); border:2px solid var(--sign-edge); border-radius:4px; padding:4px 10px; font-weight:700; font-size:15px; letter-spacing:.02em; }
   .panel { background:var(--panel); padding:5px 10px; font-size:13px; border-radius:4px; font-variant-numeric: tabular-nums; }
   #kmh { color:var(--accent); font-weight:700; font-size:17px; }
+  #pxbox { pointer-events:auto; display:flex; align-items:center; gap:4px; }
+  #pxbox button { font:inherit; font-weight:700; min-width:30px; height:28px; border:2px solid rgba(255,255,255,.5); border-radius:4px;
+    background:transparent; color:var(--fg); cursor:pointer; }
+  #pxbox button.on { background:var(--accent); border-color:var(--accent); color:#13202c; }
+  #pxbox button:focus-visible { outline:2px solid #fff; outline-offset:2px; }
   #help { position:fixed; left:max(16px, env(safe-area-inset-left, 0px)); bottom:calc(16px + env(safe-area-inset-bottom, 0px)); font-size:12px; pointer-events:none; }
   #touch { position:fixed; inset:auto 0 0 0; height:150px; display:none; pointer-events:none; }
   #touch .btn { position:absolute; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); width:72px; height:72px; border:2px solid #fff;
@@ -25,9 +31,9 @@
 <div id="hud">
   <div class="sign" id="street">—</div>
   <div class="panel"><span id="kmh">0</span> km/h</div>
-  <div class="panel">Pixel <span id="pxv">2</span></div>
+  <div class="panel" id="pxbox">Pixel <button data-px="1">1</button><button data-px="2">2</button><button data-px="3">3</button><button data-px="4">4</button></div>
 </div>
-<div id="help" class="panel">W/↑ Gas · S/↓ Bremse · A D/← → Lenken · +/− Pixelgröße</div>
+<div id="help" class="panel">W/↑ Gas · S/↓ Bremse · A D/← → Lenken · +/− oder Knöpfe oben: Pixelgröße</div>
 <div id="touch">
   <div class="btn" id="tl">◀</div><div class="btn" id="tr">▶</div>
   <div class="btn" id="tb">■</div><div class="btn" id="tg">▲</div>
@@ -497,9 +503,10 @@ function resize() {
   rt.depthTexture = new THREE.DepthTexture(rw, rh);
   postMat.uniforms.tColor.value = rt.texture; postMat.uniforms.tDepth.value = rt.depthTexture; postMat.uniforms.res.value.set(rw, rh);
   camera.aspect = w / h; camera.updateProjectionMatrix();
-  document.getElementById('pxv').textContent = px;
+  document.querySelectorAll('#pxbox button').forEach(b => b.classList.toggle('on', +b.dataset.px === px));
 }
 addEventListener('resize', resize);
+document.querySelectorAll('#pxbox button').forEach(b => b.addEventListener('click', () => { px = +b.dataset.px; resize(); b.blur(); }));
 
 /* =====================================================================
    7) STEUERUNG, KOLLISION, STRASSENNAMEN
