@@ -17,7 +17,9 @@ Manhattan als frei befahrbare Open World im Pixel-Art-Stil, im Browser.
 | W / ↑ | Gas (Helikopter: vorwärts) |
 | S / ↓ | Bremse / Rückwärts |
 | A D / ← → | Lenken / Drehen |
-| H | Zwischen Taxi und Helikopter wechseln |
+| F | Aussteigen / Einsteigen (eigenes Auto, parkende Autos, Autos im Verkehr, gelandeter Helikopter) |
+| H | Helikopter holen / zurück ins Auto |
+| Shift (zu Fuß) | Rennen |
 | Leertaste / E | Helikopter: steigen |
 | Shift / Q | Helikopter: sinken |
 | + / − | Pixelgröße ändern (auch per Knopf oben) |

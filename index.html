@@ -31,6 +31,9 @@
   #tb { right:calc(max(18px, env(safe-area-inset-right, 0px)) + 92px); bottom:calc(30px + env(safe-area-inset-bottom, 0px)); width:78px; height:84px; }
   #tu { right:max(18px, env(safe-area-inset-right, 0px)); bottom:calc(100px + env(safe-area-inset-bottom, 0px)); width:78px; height:62px; }
   #td { right:max(18px, env(safe-area-inset-right, 0px)); bottom:calc(30px + env(safe-area-inset-bottom, 0px)); width:78px; height:62px; }
+  #act { right:max(18px, env(safe-area-inset-right, 0px)); bottom:calc(178px + env(safe-area-inset-bottom, 0px)); width:170px; height:50px; border-color:#7fd1ff!important; }
+  #act.dim { opacity:.45; }
+  #toast { position:fixed; z-index:3; left:50%; top:38%; transform:translateX(-50%); background:var(--panel); padding:8px 14px; border-radius:6px; font-size:14px; pointer-events:none; transition:opacity .3s; opacity:0; }
   #touch .btn[hidden] { display:none; }
   #touch .btn.down { background:rgba(255,198,26,.55); }
   #mini { position:fixed; z-index:2; top:calc(12px + env(safe-area-inset-top, 0px)); right:max(16px, env(safe-area-inset-right, 0px));
@@ -49,14 +52,16 @@
 <div id="hud">
   <div class="sign" id="street">—</div>
   <div class="panel"><span id="kmh">0</span> km/h<span id="altbox" hidden> · Höhe <span id="alt">0</span> m</span></div>
-  <div class="panel seg" id="modebox"><button data-mode="taxi" class="on">Taxi</button><button data-mode="heli">Helikopter</button></div>
+  <div class="panel seg" id="modebox"><button data-mode="car" class="on">Auto</button><button data-mode="heli">Helikopter</button></div>
   <div class="panel" id="pxbox">Pixel <button data-px="1">1</button><button data-px="2">2</button><button data-px="3">3</button><button data-px="4">4</button></div>
 </div>
 <div id="help" class="panel">W/↑ Gas · S/↓ Bremse · A D/← → Lenken · H Fahrzeug wechseln · +/− Pixelgröße</div>
+<div id="toast"></div>
 <canvas id="mini" width="300" height="300" title="Karte (antippen zum Vergrößern)"></canvas>
 <div id="touch">
   <div id="joy"><div id="knob"></div></div>
   <div class="btn" id="tb">Bremse</div><div class="btn" id="tg">Gas</div>
+  <div class="btn" id="act">Aussteigen</div>
   <div class="btn" id="tu" hidden>Hoch</div><div class="btn" id="td" hidden>Runter</div>
 </div>
 
@@ -337,12 +342,12 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(8000, 32, 16), skyMat); scen
 /* =====================================================================
    5) TAXI
    ===================================================================== */
-const car = new THREE.Group();
-{
+function buildCar(color = '#f5c518', taxi = true) {
+  const car = new THREE.Group();
   const L = c => new THREE.MeshLambertMaterial({ color: c }), B = c => new THREE.MeshBasicMaterial({ color: c });
   const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; car.add(m); return m; };
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-  const yel = L('#f5c518'), dark = L('#1b1d20'), glassM = L('#1d2731'), chrome = L('#9da3a8');
+  const yel = L(color), dark = L('#1b1d20'), glassM = L('#1d2731'), chrome = L('#9da3a8');
   add(box(1.9, 0.62, 4.6), yel, 0, 0.72, 0);                       // Karosserie
   add(box(1.86, 0.18, 1.2), yel, 0, 1.08, -1.65);                  // Motorhaube (leicht erhöht)
   add(box(1.7, 0.56, 2.3), yel, 0, 1.31, 0.25);                    // Fahrgastzelle
@@ -350,8 +355,7 @@ const car = new THREE.Group();
   add(box(1.6, 0.42, 0.06), glassM, 0, 1.30, -0.92, -0.35);        // Frontscheibe
   add(box(1.6, 0.40, 0.06), glassM, 0, 1.30, 1.42, 0.35);          // Heckscheibe
   add(box(0.06, 0.5, 0.06), yel, 0.87, 1.33, 0.25); add(box(0.06, 0.5, 0.06), yel, -0.87, 1.33, 0.25);   // B-Säulen
-  add(box(0.95, 0.28, 0.32), L('#f4f1e6'), 0, 1.74, 0.2);          // Dachschild
-  add(box(0.97, 0.06, 0.34), dark, 0, 1.6, 0.2);
+  if (taxi) { add(box(0.95, 0.28, 0.32), L('#f4f1e6'), 0, 1.74, 0.2); add(box(0.97, 0.06, 0.34), dark, 0, 1.6, 0.2); }   // Dachschild
   add(box(1.94, 0.22, 0.25), dark, 0, 0.5, -2.36); add(box(1.94, 0.22, 0.25), dark, 0, 0.5, 2.36);   // Stoßstangen
   add(box(1.95, 0.05, 3.2), dark, 0, 0.92, 0.15);                  // Zierleiste
   add(box(0.42, 0.16, 0.05), B('#fff8e0'), -0.62, 0.85, -2.31); add(box(0.42, 0.16, 0.05), B('#fff8e0'), 0.62, 0.85, -2.31);
@@ -362,8 +366,27 @@ const car = new THREE.Group();
   for (const [x, z] of [[-0.88, -1.45], [0.88, -1.45], [-0.88, 1.45], [0.88, 1.45]]) {
     add(wheel, L('#121212'), x, 0.36, z, 0, 0, Math.PI / 2); add(hub, chrome, x, 0.36, z, 0, 0, Math.PI / 2);
   }
+  scene.add(car); return car;
 }
-scene.add(car);
+let car = buildCar();          // das Auto, in dem man gerade sitzt (null = zu Fuß)
+
+/* ---------- Spielfigur (zu Fuß) ---------- */
+const person = new THREE.Group(), legs = [], arms = [];
+{
+  const L = c => new THREE.MeshLambertMaterial({ color: c });
+  const part = (parent, w, h, d, col, x, y, z, pivot) => {
+    const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), L(col)); m.position.y = pivot ? -h / 2 : h / 2; m.castShadow = true; g.add(m); return g;
+  };
+  part(person, 0.46, 0.64, 0.26, '#e4572e', 0, 0.94, 0);           // Jacke
+  part(person, 0.24, 0.26, 0.25, '#e0ac69', 0, 1.58, 0);           // Kopf
+  part(person, 0.26, 0.08, 0.27, '#2b2b2b', 0, 1.82, 0);           // Mütze
+  for (const sx of [-0.11, 0.11]) legs.push(part(person, 0.16, 0.9, 0.18, '#26314f', sx, 0.94, 0, true));
+  for (const sx of [-0.3, 0.3]) arms.push(part(person, 0.12, 0.62, 0.14, '#e4572e', sx, 1.54, 0, true));
+  person.visible = false; scene.add(person);
+}
+const P = { x: 0, z: 0, yaw: 0, ph: 0 };
+const myCars = [];             // abgestellte eigene Autos { g, x, z, yaw, cols }
 
 /* ---------- Helikopter ---------- */
 const heli = new THREE.Group(); heli.rotation.order = 'YXZ'; heli.visible = false;
@@ -566,7 +589,8 @@ function instanced(geo, mat, list, setter, shadows = [true, true], maxD = 800) {
     scene.add(mesh); meshes.push(mesh);
     const bs = mesh.boundingSphere; CULL.push({ mesh, x: bs.center.x, z: bs.center.z, r: bs.radius, maxD });
   }
-  return { meshes, setColorAt(k, c) { meshes[where[2 * k]].setColorAt(where[2 * k + 1], c); } };
+  return { meshes, setColorAt(k, c) { meshes[where[2 * k]].setColorAt(where[2 * k + 1], c); },
+    hide(k) { const m = meshes[where[2 * k]]; m.setMatrixAt(where[2 * k + 1], M.makeScale(0, 0, 0)); m.instanceMatrix.needsUpdate = true; } };
 }
 function cullProps(cx, cz) {
   const f = MOBILE ? 1 : 2;
@@ -814,8 +838,8 @@ function inBuilding(x, z, y = 0.5, margin = 0) {
 /* ---------- Straßenmöbel: Bäume, Laternen, parkende Autos, Schilder ---------- */
 status('Bäume, Laternen und Schilder …'); await tick();
 const colliders = new Grid(20);      // Kreise {x, z, r} für die Taxi-Kollision
-const addCol = (x, z, r) => colliders.add(x - r, z - r, x + r, z + r, { x, z, r });
-const trees = [], lamps = [], parked = [], hydrants = [];
+const addCol = (x, z, r) => { const c = { x, z, r }; colliders.add(x - r, z - r, x + r, z + r, c); return c; };
+const trees = [], lamps = [], parked = [], hydrants = [], PARKED_MESH = [];
 const okSidewalk = (x, z) => LANDR.on(x, z) && !inBuilding(x, z, 0.5, 0.6);
 ROADS.forEach((r, ri) => {
   if (r.cls > 7 || r.len < 20) return;
@@ -838,7 +862,7 @@ ROADS.forEach((r, ri) => {
       const [x, z, dx, dz] = roadAt(r, s), rx = -dz * side, rz = dx * side, px = x + rx * (hw - 1.2), pz = z + rz * (hw - 1.2);
       if (nearInter(px, pz, 13) || !LANDR.on(px, pz)) continue;
       parked.push([px, pz, Math.atan2(-dx, -dz) + (side > 0 ? 0 : Math.PI)]);
-      addCol(px - dx * 1.2, pz - dz * 1.2, 1.0); addCol(px + dx * 1.2, pz + dz * 1.2, 1.0);
+      parked.at(-1).cols = [addCol(px - dx * 1.2, pz - dz * 1.2, 1.0), addCol(px + dx * 1.2, pz + dz * 1.2, 1.0)];
     }
     if (r.cls <= 6 && hr(ri, side + 40) < 0.5) {
       const s = 15 + hr(ri, side + 41) * Math.max(1, r.len - 30), [x, z, dx, dz] = roadAt(r, s);
@@ -883,8 +907,9 @@ for (const p of parkPolys) {
   const set = p => M.compose(V.set(p[0], 0, p[1]), Q.setFromAxisAngle(UP, p[2]), Sc.set(1, 1, 1));
   const bm = instanced(body, new THREE.MeshLambertMaterial({ color: 0xffffff }), parked, set, [true, true], 450);
   const cols = ['#e9e9e6', '#1d1f22', '#7b8086', '#9a1f1f', '#203a5c', '#c9c4b8', '#3b3f45', '#5a6b4a', '#2c3e50', '#b0b4b8'].map(c => new THREE.Color(c));
-  parked.forEach((_, k) => bm.setColorAt(k, cols[Math.floor(hr(k, 60) * cols.length)]));
-  instanced(cab, new THREE.MeshLambertMaterial({ color: '#25303a' }), parked, set, [true, true], 450);
+  parked.forEach((p, k) => { p.col = cols[Math.floor(hr(k, 60) * cols.length)]; bm.setColorAt(k, p.col); });
+  PARKED_MESH.push(bm);
+  PARKED_MESH.push(instanced(cab, new THREE.MeshLambertMaterial({ color: '#25303a' }), parked, set, [true, true], 450));
 }
 { // grüne Straßenschilder und Ampeln an den echten Kreuzungen
   const used = [...new Set(INTER.flatMap(it => [it.n1, it.n2]))], row = new Map(used.map((n, i) => [n, i]));
@@ -962,14 +987,14 @@ const trafficCab = new THREE.InstancedMesh(tCab, new THREE.MeshLambertMaterial({
 const trafficWheel = new THREE.InstancedMesh(tWheel, new THREE.MeshLambertMaterial({ color: '#111' }), traffic.length * 2);
 {
   const cols = ['#f5c518', '#f5c518', '#f5c518', '#e9e9e6', '#1d1f22', '#7b8086', '#9a1f1f', '#203a5c', '#c9c4b8', '#3b3f45', '#5a6b4a'].map(c => new THREE.Color(c));
-  traffic.forEach((_, k) => trafficBody.setColorAt(k, cols[Math.floor(hr(k, 79) * cols.length)]));
+  traffic.forEach((t, k) => { t.col = cols[Math.floor(hr(k, 79) * cols.length)]; trafficBody.setColorAt(k, t.col); });
   for (const m of [trafficBody, trafficCab, trafficWheel]) { m.castShadow = PROP_SHADOWS; m.receiveShadow = true; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); }
 }
 const TQ = new THREE.Quaternion(), TP = new THREE.Vector3(), ONE = new THREE.Vector3(1, 1, 1), TOFF = new THREE.Vector3();
 let trafficN = 0;
 function updateTraffic(dt, ax, az, cx, cz, all = false) {
   traffic.forEach((t, k) => {
-    if (!all && k >= trafficN) return;
+    if (!all && k >= trafficN || t.taken) return;
     if (!all && Math.abs(t.x - cx) > 700 || !all && Math.abs(t.z - cz) > 700) { t.s = (t.s + t.dir * t.cur * dt + t.r.len) % t.r.len; return; }
     const along = (ax - t.x) * t.dx + (az - t.z) * t.dz, side = Math.abs((ax - t.x) * t.dz - (az - t.z) * t.dx);
     const target = (along > 0 && along < 11 && side < 1.8) ? 0 : t.v;     // vor dem Taxi anhalten
@@ -1067,7 +1092,7 @@ function blockedCar(x, z, yaw) {
   }
   for (const [a] of [[1.4], [-1.4]]) {
     const px = x + fx * a, pz = z + fz * a;
-    for (const c of colliders.at(px, pz)) if (Math.hypot(c.x - px, c.z - pz) < c.r + 0.9) return true;
+    for (const c of colliders.at(px, pz)) if (c.r > 0 && Math.hypot(c.x - px, c.z - pz) < c.r + 0.9) return true;
   }
   return false;
 }
@@ -1079,23 +1104,96 @@ function heliBlocked(x, y, z) {
 function streetName(x, z) { const nr = nearestRoad(x, z, 9, 25); return nr && nr.r.name ? nr.r.name : '—'; }
 
 const keys = {};
-let mode = 'taxi', snapCam = false;
-function setMode(m) {
-  if (m === mode) return; mode = m; snapCam = true;
-  if (m === 'heli') { H.x = S.x; H.z = S.z; H.y = 9; H.yaw = S.yaw; H.vx = H.vy = H.vz = H.yawRate = 0; heli.visible = true; S.v = 0; }
-  else { if (!blockedCar(H.x, H.z, H.yaw)) { S.x = H.x; S.z = H.z; S.yaw = H.yaw; } S.v = 0; }  // Taxi landet unter dem Heli, wenn dort Straße ist
-  document.querySelectorAll('#modebox button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
-  document.getElementById('altbox').hidden = m !== 'heli';
-  for (const id of ['tu', 'td']) document.getElementById(id).hidden = m !== 'heli';
-  for (const id of ['tg', 'tb']) document.getElementById(id).hidden = m === 'heli';
-  document.getElementById('help').textContent = m === 'heli'
-    ? 'W/↑ vorwärts · S/↓ rückwärts · A D/← → drehen · Leertaste/E steigen · Shift/Q sinken · H Fahrzeug wechseln'
-    : 'W/↑ Gas · S/↓ Bremse · A D/← → Lenken · H Fahrzeug wechseln · +/− Pixelgröße';
+let mode = 'car', snapCam = false;          // 'car' | 'foot' | 'heli'
+let toastT = 0;
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.opacity = 1; toastT = 2.2; }
+const HELP = {
+  car: 'W/↑ Gas · S/↓ Bremse · A D/← → Lenken · F Aussteigen · H Helikopter · +/− Pixelgröße',
+  foot: 'W/↑ gehen · S/↓ zurück · A D/← → drehen · Shift rennen · F Einsteigen (Auto oder Helikopter in der Nähe)',
+  heli: 'W/↑ vorwärts · S/↓ rückwärts · A D/← → drehen · Leertaste/E steigen · Shift/Q sinken · F Aussteigen (am Boden) · H Auto',
+};
+function updateUI() {
+  document.querySelectorAll('#modebox button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode || (mode === 'foot' && b.dataset.mode === 'car')));
+  document.getElementById('altbox').hidden = mode !== 'heli';
+  for (const id of ['tu', 'td']) document.getElementById(id).hidden = mode !== 'heli';
+  for (const id of ['tg', 'tb']) document.getElementById(id).hidden = mode !== 'car';
+  document.getElementById('act').textContent = mode === 'foot' ? 'Einsteigen' : 'Aussteigen';
+  document.getElementById('help').textContent = HELP[mode];
+  person.visible = mode === 'foot';
 }
+// Auto abstellen (wird zu einem Hindernis, in das man später wieder einsteigen kann)
+function parkCar() {
+  if (!car) return;
+  const fx = -Math.sin(S.yaw), fz = -Math.cos(S.yaw);
+  myCars.push({ g: car, x: S.x, z: S.z, yaw: S.yaw, cols: [addCol(S.x - fx * 1.2, S.z - fz * 1.2, 1.0), addCol(S.x + fx * 1.2, S.z + fz * 1.2, 1.0)] });
+  car = null;
+}
+function takeCar(g, x, z, yaw) { car = g; S.x = x; S.z = z; S.yaw = yaw; S.v = 0; S.steer = 0; car.position.set(x, 0, z); car.rotation.y = yaw; }
+const hex = c => '#' + c.getHexString();
+function nearestVehicle(x, z) {
+  let best = null, bd = 4.5;
+  const test = (d, o) => { if (d < bd) { bd = d; best = o; } };
+  myCars.forEach((c, i) => test(Math.hypot(c.x - x, c.z - z), { kind: 'mine', i }));
+  if (heli.visible && H.y < 3) test(Math.hypot(H.x - x, H.z - z) - 1.5, { kind: 'heli' });
+  for (let k = 0; k < trafficN; k++) { const t = traffic[k]; if (!t.taken) test(Math.hypot(t.x - x, t.z - z), { kind: 'traffic', k }); }
+  for (const pc of parked) if (!pc.taken && Math.abs(pc[0] - x) < 5 && Math.abs(pc[1] - z) < 5) test(Math.hypot(pc[0] - x, pc[1] - z), { kind: 'parked', pc, k: parked.indexOf(pc) });
+  return best;
+}
+function placeBeside(x, z, yaw, dist) {        // freien Platz neben einem Fahrzeug suchen
+  const rx = Math.cos(yaw), rz = -Math.sin(yaw);
+  for (const d of [-dist, dist, -dist * 1.6, dist * 1.6]) { const px = x + rx * d, pz = z + rz * d; if (!blockedFoot(px, pz)) return [px, pz]; }
+  return [x + rx * -dist, z + rz * -dist];
+}
+function action() {
+  if (mode === 'car') {
+    [P.x, P.z] = placeBeside(S.x, S.z, S.yaw, 2.2); P.yaw = S.yaw; parkCar(); mode = 'foot'; snapCam = true;
+  } else if (mode === 'heli') {
+    if (H.y > 3) { toast('Zum Aussteigen erst landen (Runter)'); return; }
+    [P.x, P.z] = placeBeside(H.x, H.z, H.yaw, 3.5); P.yaw = H.yaw; mode = 'foot'; snapCam = true;
+  } else {
+    const v = nearestVehicle(P.x, P.z);
+    if (!v) { toast('Kein Fahrzeug in der Nähe – geh näher heran'); return; }
+    if (v.kind === 'heli') { mode = 'heli'; H.vx = H.vy = H.vz = H.yawRate = 0; }
+    else if (v.kind === 'mine') { const c = myCars.splice(v.i, 1)[0]; for (const cc of c.cols) cc.r = 0; takeCar(c.g, c.x, c.z, c.yaw); mode = 'car'; }
+    else if (v.kind === 'traffic') {
+      const t = traffic[v.k]; t.taken = true;
+      M.makeScale(0, 0, 0); trafficBody.setMatrixAt(v.k, M); trafficCab.setMatrixAt(v.k, M); trafficWheel.setMatrixAt(v.k * 2, M); trafficWheel.setMatrixAt(v.k * 2 + 1, M);
+      trafficBody.instanceMatrix.needsUpdate = trafficCab.instanceMatrix.needsUpdate = trafficWheel.instanceMatrix.needsUpdate = true;
+      const isTaxi = hex(t.col) === '#f5c518';
+      takeCar(buildCar(hex(t.col), isTaxi), t.x, t.z, Math.atan2(-t.dx, -t.dz)); mode = 'car';
+    } else {
+      const pc = v.pc; pc.taken = true; for (const cc of pc.cols) cc.r = 0; for (const pm of PARKED_MESH) pm.hide(v.k);
+      takeCar(buildCar(hex(pc.col), false), pc[0], pc[1], pc[2]); mode = 'car';
+    }
+    snapCam = true;
+  }
+  updateUI();
+}
+function setMode(m) {      // Knöpfe oben: Auto / Helikopter (mit Teleport, wie bisher)
+  if (m === mode || (m === 'car' && mode === 'foot' && !car && !myCars.length)) return;
+  const from = mode;
+  if (m === 'heli') {
+    const [x, z, yaw] = from === 'foot' ? [P.x, P.z, P.yaw] : [S.x, S.z, S.yaw];
+    if (from === 'car') parkCar();
+    H.x = x; H.z = z; H.y = 9; H.yaw = yaw; H.vx = H.vy = H.vz = H.yawRate = 0; heli.visible = true;
+  } else {   // zurück ins Auto: das zuletzt abgestellte Auto holen, bei Heli-Wechsel unter den Heli setzen
+    if (!car) { const c = myCars.pop(); for (const cc of c.cols) cc.r = 0; takeCar(c.g, c.x, c.z, c.yaw); }
+    if (from === 'heli' && !blockedCar(H.x, H.z, H.yaw)) takeCar(car, H.x, H.z, H.yaw);
+  }
+  mode = m; snapCam = true; S.v = 0; updateUI();
+}
+function blockedFoot(x, z) {
+  if (!LANDR.on(x, z) || inBuilding(x, z, 1, 0.25)) return true;
+  for (const c of colliders.at(x, z)) if (c.r > 0 && Math.hypot(c.x - x, c.z - z) < c.r + 0.3) return true;
+  return false;
+}
+document.getElementById('act').addEventListener('pointerdown', e => { e.preventDefault(); action(); });
+updateUI();
 document.querySelectorAll('#modebox button').forEach(b => b.addEventListener('click', () => { setMode(b.dataset.mode); b.blur(); }));
 addEventListener('keydown', e => { keys[e.code] = true;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
-  if (e.code === 'KeyH' && !e.repeat) setMode(mode === 'taxi' ? 'heli' : 'taxi');
+  if (e.code === 'KeyH' && !e.repeat) setMode(mode === 'heli' ? 'car' : 'heli');
+  if (e.code === 'KeyF' && !e.repeat) action();
   if (e.key === '+' || e.code === 'NumpadAdd') { px = Math.min(5, px + 1); resize(); }
   if (e.key === '-' || e.code === 'NumpadSubtract') { px = Math.max(1, px - 1); resize(); } });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -1174,13 +1272,14 @@ function drawMini(px0, pz0, fx, fz, alt) {
     let x = (dx * c - dz * s) * k, y = (dx * s + dz * c) * k; const l = Math.hypot(x, y); if (l > R - 8) { x *= (R - 8) / l; y *= (R - 8) / l; }
     mctx.fillStyle = col; mctx.strokeStyle = '#000'; mctx.lineWidth = 2; mctx.beginPath(); mctx.arc(R + x, R + y, 6, 0, 7); mctx.fill(); mctx.stroke();
   };
-  if (mode === 'heli') mark(S.x, S.z, '#f5c518');
+  if (mode !== 'car') { if (car) mark(S.x, S.z, '#f5c518'); else if (myCars.length) mark(myCars.at(-1).x, myCars.at(-1).z, '#f5c518'); }
+  if (mode !== 'heli' && heli.visible) mark(H.x, H.z, '#3d8bff');
   // Nordpfeil (Raster-Norden = -z)
   { const c = Math.cos(phi), s = Math.sin(phi), nx = s * -1 * -1, ny = c * -1; const l = R - 14;
     mctx.fillStyle = '#fff'; mctx.font = 'bold 15px Helvetica, Arial, sans-serif'; mctx.textAlign = 'center'; mctx.textBaseline = 'middle';
     mctx.strokeStyle = '#000'; mctx.lineWidth = 3; mctx.strokeText('N', R + nx * l, R + ny * l); mctx.fillText('N', R + nx * l, R + ny * l); }
   // eigenes Fahrzeug als Pfeil in der Mitte
-  mctx.fillStyle = mode === 'heli' ? '#3d8bff' : '#f5c518'; mctx.strokeStyle = '#000'; mctx.lineWidth = 2;
+  mctx.fillStyle = mode === 'heli' ? '#3d8bff' : mode === 'foot' ? '#e4572e' : '#f5c518'; mctx.strokeStyle = '#000'; mctx.lineWidth = 2;
   mctx.beginPath(); mctx.moveTo(R, R - 11); mctx.lineTo(R + 8, R + 9); mctx.lineTo(R, R + 4); mctx.lineTo(R - 8, R + 9); mctx.closePath(); mctx.fill(); mctx.stroke();
 }
 let miniT = 0, cullT = 0;
@@ -1207,7 +1306,7 @@ function frame() {
   const jx = jcurve(touch.jx), jy = jcurve(touch.jy);
   let px0, pz0, fx, fz, speed;
 
-  if (mode === 'taxi') {
+  if (mode === 'car') {
     if (gas) S.v += 14 * dt; else if (brk) S.v -= (S.v > 0 ? 28 : 8) * dt; else S.v *= 1 - 0.5 * dt;
     S.v = Math.max(-8, Math.min(S.v, 30));
     S.steer += (Math.max(-1, Math.min(1, (left ? 1 : 0) - (right ? 1 : 0) - jx)) - S.steer) * Math.min(1, 8 * dt);
@@ -1219,7 +1318,7 @@ function frame() {
     else if (!blockedCar(S.x, nz, S.yaw)) { S.z = nz; S.v *= 0.9; }
     else S.v *= -0.3;
     fx = -Math.sin(S.yaw); fz = -Math.cos(S.yaw);
-    for (let ti = 0; ti < trafficN; ti++) { const t = traffic[ti];   // Zusammenstoß mit dem Verkehr
+    for (let ti = 0; ti < trafficN; ti++) { const t = traffic[ti]; if (t.taken) continue;   // Zusammenstoß mit dem Verkehr
       const dx = S.x - t.x, dz = S.z - t.z; if (Math.abs(dx) > 6 || Math.abs(dz) > 6) continue;
       const along = Math.abs(dx * t.dx + dz * t.dz), side = Math.abs(dx * t.dz - dz * t.dx);
       if (along < 3.6 && side < 1.9) { S.v *= -0.3; S.x += dx * 0.15; S.z += dz * 0.15; }
@@ -1230,6 +1329,23 @@ function frame() {
     camera.position.copy(camPos); camera.lookAt(S.x + fx * 8, 2.4, S.z + fz * 8);
     camera.fov = 64 + S.v * 0.3 + portraitFov();
     px0 = S.x; pz0 = S.z; speed = Math.abs(S.v);
+  } else if (mode === 'foot') {
+    const run = keys.ShiftLeft || keys.ShiftRight;
+    const fwd = Math.max(-1, Math.min(1, (gas ? 1 : 0) - (brk ? 1 : 0) - jy)), turn = Math.max(-1, Math.min(1, (left ? 1 : 0) - (right ? 1 : 0) - jx));
+    P.yaw += turn * 2.6 * dt;
+    fx = -Math.sin(P.yaw); fz = -Math.cos(P.yaw);
+    const sp = fwd * (run ? 7.5 : 4.2) * (fwd < 0 ? 0.5 : 1);
+    const nx = P.x + fx * sp * dt, nz = P.z + fz * sp * dt;
+    if (!blockedFoot(nx, nz)) { P.x = nx; P.z = nz; } else if (!blockedFoot(nx, P.z)) P.x = nx; else if (!blockedFoot(P.x, nz)) P.z = nz;
+    P.ph += Math.abs(sp) * dt * 2.4;
+    const sw = Math.abs(sp) > 0.1 ? Math.sin(P.ph) : 0;
+    legs[0].rotation.x = sw * 0.6; legs[1].rotation.x = -sw * 0.6; arms[0].rotation.x = -sw * 0.5; arms[1].rotation.x = sw * 0.5;
+    person.position.set(P.x, Math.abs(Math.cos(P.ph)) * 0.04 * Math.min(1, Math.abs(sp)), P.z); person.rotation.y = P.yaw;
+    tgt.set(P.x - fx * 5, 2.7, P.z - fz * 5);
+    camPos.lerp(tgt, snapCam ? 1 : 1 - Math.pow(0.004, dt)); snapCam = false;
+    camera.position.copy(camPos); camera.lookAt(P.x + fx * 3, 1.4, P.z + fz * 3);
+    camera.fov = 66 + portraitFov();
+    px0 = P.x; pz0 = P.z; speed = Math.abs(sp);
   } else {
     const fwd = Math.max(-1, Math.min(1, (gas ? 1 : 0) - (brk ? 1 : 0) - jy)), turn = Math.max(-1, Math.min(1, (left ? 1 : 0) - (right ? 1 : 0) - jx));
     const up = ((keys.Space || keys.KeyE || touch.u) ? 1 : 0) - ((keys.ShiftLeft || keys.ShiftRight || keys.KeyQ || touch.d) ? 1 : 0);
@@ -1257,10 +1373,10 @@ function frame() {
     document.getElementById('alt').textContent = Math.round(H.y);
   }
   rotor.rotation.y += dt * 28; tailRotor.rotation.x += dt * 40;
-  car.position.set(S.x, 0, S.z); car.rotation.y = S.yaw;
+  if (car) { car.position.set(S.x, 0, S.z); car.rotation.y = S.yaw; }
   camera.updateProjectionMatrix();
   sky.position.copy(camera.position);
-  updateTraffic(dt, S.x, S.z, camera.position.x, camera.position.z);
+  updateTraffic(dt, mode === 'foot' ? P.x : S.x, mode === 'foot' ? P.z : S.z, camera.position.x, camera.position.z);
   updatePeds(dt, camera.position.x, camera.position.z);
   if ((cullT -= dt) <= 0) { cullT = 0.3; cullProps(camera.position.x, camera.position.z); }
 
@@ -1270,11 +1386,14 @@ function frame() {
   sun.target.position.set(sx, 0, sz); sun.position.set(sx + SUN_DIR.x * 700, SUN_DIR.y * 700, sz + SUN_DIR.z * 700);
 
   document.getElementById('kmh').textContent = Math.round(speed * 3.6);
-  if ((hudT -= dt) <= 0) { hudT = 0.25; document.getElementById('street').textContent = streetName(px0, pz0); }
+  if ((hudT -= dt) <= 0) { hudT = 0.25; document.getElementById('street').textContent = streetName(px0, pz0);
+    document.getElementById('act').classList.toggle('dim', mode === 'foot' ? !nearestVehicle(P.x, P.z) : mode === 'heli' && H.y > 3); }
+  if (toastT > 0 && (toastT -= dt) <= 0) document.getElementById('toast').style.opacity = 0;
   if ((miniT -= dt) <= 0) { miniT = MOBILE ? 0.15 : 0.05; drawMini(px0, pz0, fx, fz, mode === 'heli' ? H.y : 0); }
   renderer.setRenderTarget(rt); renderer.render(scene, camera);
   window.__frames = (window.__frames || 0) + 1; window.__calls = renderer.info.render.calls; window.__tris = renderer.info.render.triangles;
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+  window.__state = () => ({ mode, car: !!car, myCars: myCars.length, P: [P.x.toFixed(1), P.z.toFixed(1)], S: [S.x.toFixed(1), S.z.toFixed(1)], toast: document.getElementById('toast').textContent });
   if (!window.__started) { window.__started = true; const l = document.getElementById('load'); if (l && !l.querySelector('b')) l.remove(); }
   requestAnimationFrame(frame);
 }
