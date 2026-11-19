@@ -36,6 +36,12 @@ python3 tools/build_manhattan.py      # schreibt data/manhattan.json
 
 Die Seite lädt `data/manhattan.json` nach, braucht also einen kleinen Webserver, z. B. `python3 -m http.server` im Projektordner, dann http://localhost:8000 öffnen.
 
+## Online spielen (GitHub Pages)
+
+Die Seite läuft ohne Server-Code direkt über GitHub Pages:
+Repo → Settings → Pages → Source „Deploy from a branch“ → Zweig wählen, Ordner `/ (root)` → Save.
+Danach ist das Spiel unter `https://<benutzername>.github.io/manhatten-pixel/` erreichbar.
+
 ## Lizenz der Kartendaten
 
 Kartendaten © OpenStreetMap-Mitwirkende, verfügbar unter der Open Database License (ODbL): https://www.openstreetmap.org/copyright
