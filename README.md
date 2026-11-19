@@ -19,7 +19,8 @@ Manhattan als frei befahrbare Open World im Pixel-Art-Stil, im Browser.
 | A D / ← → | Lenken / Drehen |
 | F | Aussteigen / Einsteigen (eigenes Auto, parkende Autos, Autos im Verkehr, gelandeter Helikopter) |
 | H | Helikopter holen / zurück ins Auto |
-| Shift (zu Fuß) | Rennen |
+| Shift (zu Fuß) | Rennen (am Handy: Knopf „Rennen“) |
+| Leertaste / Mausklick (zu Fuß) | Schießen (am Handy: Knopf „Schießen“) |
 | Leertaste / E | Helikopter: steigen |
 | Shift / Q | Helikopter: sinken |
 | + / − | Pixelgröße ändern (auch per Knopf oben) |
