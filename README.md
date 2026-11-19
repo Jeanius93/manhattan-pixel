@@ -22,7 +22,7 @@ Manhattan als frei befahrbare Open World im Pixel-Art-Stil, im Browser.
 | Shift / Q | Helikopter: sinken |
 | + / − | Pixelgröße ändern (auch per Knopf oben) |
 
-Am Handy: Steuerknüppel links zum Lenken, Gas und Bremse rechts (im Helikopter: Hoch/Runter). Oben rechts die Minikarte (antippen zum Vergrößern), oben die Grafikstufe „Schnell“ oder „Schön“.
+Am Handy: Steuerknüppel links zum Lenken, Gas und Bremse rechts (im Helikopter: Hoch/Runter). Oben rechts die Minikarte (antippen zum Vergrößern).
 
 ## Daten neu erzeugen
 

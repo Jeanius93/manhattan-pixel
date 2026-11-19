@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Manhattan Pixel</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
@@ -36,7 +37,6 @@
     width:148px; height:148px; border-radius:50%; border:3px solid #fff; box-shadow:0 2px 10px rgba(0,0,0,.4); background:#2b5470; cursor:pointer; touch-action:manipulation; }
   #mini.big { width:min(300px, 70vw); height:min(300px, 70vw); }
   #hud { right:calc(max(16px, env(safe-area-inset-right, 0px)) + 160px)!important; }
-  #qbox button { min-width:0; padding:0 8px; }
   @media (max-width: 700px) { .panel, .sign { font-size:12px; } #pxbox { display:none; } #mini { width:118px; height:118px; } #hud { right:calc(max(16px, env(safe-area-inset-right, 0px)) + 128px)!important; } }
   @media (pointer:coarse) { #touch { display:block; } #help { display:none; } }
   #attr { position:fixed; z-index:2; right:max(8px, env(safe-area-inset-right, 0px)); bottom:calc(6px + env(safe-area-inset-bottom, 0px)); font-size:11px; background:var(--panel); padding:2px 6px; border-radius:3px; }
@@ -50,7 +50,6 @@
   <div class="sign" id="street">—</div>
   <div class="panel"><span id="kmh">0</span> km/h<span id="altbox" hidden> · Höhe <span id="alt">0</span> m</span></div>
   <div class="panel seg" id="modebox"><button data-mode="taxi" class="on">Taxi</button><button data-mode="heli">Helikopter</button></div>
-  <div class="panel seg" id="qbox">Grafik <button data-q="low">Schnell</button><button data-q="high">Schön</button></div>
   <div class="panel" id="pxbox">Pixel <button data-px="1">1</button><button data-px="2">2</button><button data-px="3">3</button><button data-px="4">4</button></div>
 </div>
 <div id="help" class="panel">W/↑ Gas · S/↓ Bremse · A D/← → Lenken · H Fahrzeug wechseln · +/− Pixelgröße</div>
@@ -79,8 +78,7 @@ window.__started = false;
    Manhattan-Raster achsparallel liegt. Norden (Uptown) = -z.
    ===================================================================== */
 const MOBILE = matchMedia('(pointer:coarse)').matches || Math.min(innerWidth, innerHeight) < 600;
-let QUALITY = MOBILE ? 'low' : 'high';
-try { const q = localStorage.getItem('mp-quality'); if (q === 'low' || q === 'high') QUALITY = q; } catch (e) {}
+let QUALITY = 'low';   // immer die schnelle Grafikstufe
 let _s = 4242; const rnd = () => (_s = (_s * 16807) % 2147483647) / 2147483647;
 const pick = a => a[Math.floor(rnd() * a.length)];
 const hr = (i, k = 0) => { let h = (i * 374761393 + k * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -229,7 +227,7 @@ const TILE_M = [[12,12.8],[12,12.8],[12,12.8],[12,13.6],[13,15.2],[12,15.2],[12,
    ===================================================================== */
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 renderer.setPixelRatio(1);
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
 document.body.appendChild(renderer.domElement);
 renderer.debug.onShaderError = (gl, prog, vs, fs) => showErr('Shader-Fehler: ' + (gl.getShaderInfoLog(fs) || gl.getShaderInfoLog(vs) || gl.getProgramInfoLog(prog)));
 
@@ -243,7 +241,7 @@ scene.add(hemi);
 const SUN_DIR = new THREE.Vector3(0.55, 0.78, 0.30).normalize();
 const sun = new THREE.DirectionalLight(new THREE.Color('#fff2de'), 2.5);
 sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.mapSize.set(1024, 1024);
 let SH = 320, SHMAP = 4096; Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 10, far: 1400 });
 sun.shadow.bias = -0.0015; sun.shadow.normalBias = 2.5;
 scene.add(sun, sun.target);
@@ -1069,7 +1067,7 @@ const jcurve = v => { const a = Math.max(0, Math.abs(v) - 0.12) / 0.88; return M
 
 /* ---------- Qualitätsstufe umschalten ---------- */
 function applyQuality(q) {
-  QUALITY = q; try { localStorage.setItem('mp-quality', q); } catch (e) {}
+  QUALITY = q;
   const low = q === 'low';
   SH = low ? 130 : 320; SHMAP = low ? 1024 : 4096;
   sun.shadow.mapSize.set(SHMAP, SHMAP); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
@@ -1080,9 +1078,7 @@ function applyQuality(q) {
   trafficN = Math.min(traffic.length, low ? 900 : traffic.length); pedN = Math.min(peds.length, low ? 700 : peds.length);
   trafficBody.count = trafficCab.count = trafficN; trafficWheel.count = trafficN * 2;
   pedParts.torso.count = pedParts.head.count = pedN; pedParts.leg.count = pedParts.arm.count = pedN * 2;
-  document.querySelectorAll('#qbox button').forEach(b => b.classList.toggle('on', b.dataset.q === q));
 }
-document.querySelectorAll('#qbox button').forEach(b => b.addEventListener('click', () => { applyQuality(b.dataset.q); b.blur(); }));
 applyQuality(QUALITY);
 
 /* ---------- Minikarte: einmal als großes Bild gezeichnet, dann nur Ausschnitt ---------- */
