@@ -571,6 +571,8 @@ function instanced(geo, mat, list, setter, shadows = [true, true], maxD = 800) {
 function cullProps(cx, cz) {
   const f = MOBILE ? 1 : 2;
   for (const e of CULL) e.mesh.visible = Math.hypot(e.x - cx, e.z - cz) - e.r < e.maxD * f;
+  const nearD = (MOBILE ? 450 : 900) + Math.min(400, Math.max(0, camera.position.y - 30));
+  for (const c of BCHUNKS) { const near = Math.hypot(c.x - cx, c.z - cz) - c.r < nearD; c.near.visible = near; c.far.visible = !near; }
 }
 
 /* ---------- Land und Wasser ---------- */
@@ -710,11 +712,23 @@ function facadeFor(h, cls, k) {
   if (cls === 4) return r < 0.4 ? 13 : r < 0.7 ? 2 : 6;
   return r < 0.25 ? 3 : r < 0.45 ? 2 : r < 0.6 ? 0 : r < 0.75 ? 13 : r < 0.88 ? 6 : 1;
 }
+const BCHUNKS = [];                 // je Kachel: detailliertes Modell + einfacher Block für die Ferne
 const BLD = [];                      // für Kollision: { pts, x0, z0, x1, z1, h, mh }
 const bGrid = new Grid(50);
 const roofStuff = [], waterTowers = [];
 {
-  const CH = 320, chunks = new Map();
+  const CH = 320, chunks = new Map(), lods = new Map();
+  // Ferne Detailstufe: jedes Gebäude als einfacher farbiger Block (Manhattan liegt achsparallel, daher passt ein Quader gut)
+  const FAC_COL = { 0: '#8a4a3c', 1: '#7d3f33', 2: '#a58665', 3: '#c9bc9e', 4: '#7398b2', 5: '#3d4248', 6: '#c9c7c1', 7: '#cfc7b6', 12: '#6b4a3a', 13: '#8c8a86', 14: '#6ea49c' };
+  const lodCols = Object.fromEntries(Object.entries(FAC_COL).map(([k, c]) => [k, new THREE.Color(c)]));
+  const roofCol = new THREE.Color('#7b7a76'), tmpC = new THREE.Color();
+  const getLod = (x, z) => { const k = Math.floor(x / CH) * 1000 + Math.floor(z / CH); let b = lods.get(k); if (!b) lods.set(k, b = { p: [], n: [], c: [] }); return b; };
+  const lodBox = (b, x0, z0, x1, z1, y0, y1, col) => {
+    const quad = (a, bb, c, d, nx, ny, nz, cc) => { for (const v of [a, bb, c, a, c, d]) { b.p.push(...v); b.n.push(nx, ny, nz); b.c.push(cc.r, cc.g, cc.b); } };
+    const A = [x0, y0, z0], B = [x1, y0, z0], C = [x1, y0, z1], D = [x0, y0, z1], E = [x0, y1, z0], F = [x1, y1, z0], G = [x1, y1, z1], Hh = [x0, y1, z1];
+    quad(A, E, F, B, 0, 0, -1, col); quad(B, F, G, C, 1, 0, 0, col); quad(C, G, Hh, D, 0, 0, 1, col); quad(D, Hh, E, A, -1, 0, 0, col);
+    quad(E, Hh, G, F, 0, 1, 0, roofCol);
+  };
   const getBuf = (x, z) => { const k = Math.floor(x / CH) * 1000 + Math.floor(z / CH); let b = chunks.get(k); if (!b) chunks.set(k, b = new GeoBuf(true)); return b; };
   DATA.buildings.forEach((b, k) => {
     const h = b[0] / 10, mh = b[1] / 10, cls = b[2];
@@ -727,6 +741,8 @@ const roofStuff = [], waterTowers = [];
     const ground = mh > 0.5 ? fac : isGlass(fac) ? 11 : (cls === 1 && h < 45 && hr(k, 2) < 0.5) ? fac : (hr(k, 3) < 0.5 ? 8 : 9);
     const f = [fac, ground, Math.floor(hr(k, 4) * 255), Math.floor(hr(k, 5) * 60)];
     const buf = getBuf(cx, cz);
+    tmpC.copy(lodCols[fac] || lodCols[6]).multiplyScalar(0.78 + f[2] / 255 * 0.36);
+    lodBox(getLod(cx, cz), x0, z0, x1, z1, mh, h, tmpC);
     // Wände
     let u = 0;
     for (let i = 0; i < n; i++) {
@@ -763,7 +779,16 @@ const roofStuff = [], waterTowers = [];
       if (h > 14 && h < 75 && hr(k, 30) < 0.3 && distToPoly(pts, cx, cz) > 3) waterTowers.push([cx, h, cz]);
     }
   });
-  for (const buf of chunks.values()) { const m = new THREE.Mesh(buf.build(), buildingMat); m.castShadow = m.receiveShadow = true; scene.add(m); }
+  const lodMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  for (const [k, buf] of chunks) {
+    const m = new THREE.Mesh(buf.build(), buildingMat); m.castShadow = m.receiveShadow = true; scene.add(m);
+    const L = lods.get(k), g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(L.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(L.n, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(L.c, 3)); g.computeBoundingSphere();
+    const lm = new THREE.Mesh(g, lodMat); lm.visible = false; scene.add(lm);
+    const bs = m.geometry.boundingSphere;
+    BCHUNKS.push({ near: m, far: lm, x: bs.center.x, z: bs.center.z, r: bs.radius });
+  }
 }
 function inBuilding(x, z, y = 0.5, margin = 0) {
   for (const b of bGrid.at(x, z)) {
@@ -1103,7 +1128,7 @@ function applyQuality(q) {
   SH = MOBILE ? 110 : low ? 150 : 320; SHMAP = low ? 1024 : 4096;
   sun.shadow.mapSize.set(SHMAP, SHMAP); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
   Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH }); sun.shadow.camera.updateProjectionMatrix();
-  camera.far = MOBILE ? 1800 : low ? 2600 : 12000; scene.fog.density = MOBILE ? 0.0013 : low ? 0.0009 : 0.00028;
+  camera.far = MOBILE ? 7000 : 12000; scene.fog.density = MOBILE ? 0.00042 : 0.00028;
   sky.scale.setScalar(camera.far * 0.9 / 8000);   // Himmel muss innerhalb der Sichtweite liegen
   postMat.uniforms.far.value = camera.far; camera.updateProjectionMatrix();
   trafficN = Math.min(traffic.length, MOBILE ? 550 : low ? 900 : traffic.length); pedN = Math.min(peds.length, MOBILE ? 400 : low ? 700 : peds.length);
