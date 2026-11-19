@@ -3,7 +3,9 @@
 Baut data/manhattan.json aus OpenStreetMap-Daten (Overpass API).
 
 Ablauf:
-  1. Rohdaten von Overpass laden (werden in tools/cache/ zwischengespeichert)
+  1. Rohdaten lesen: bevorzugt aus dem BBBike-Auszug tools/cache/NewYork.osm.pbf
+     (https://download.bbbike.org/osm/bbbike/NewYork/NewYork.osm.pbf),
+     sonst über die Overpass API (wird in tools/cache/ zwischengespeichert)
   2. Koordinaten in Meter umrechnen und um 29° drehen, damit das Straßenraster
      von Manhattan achsparallel liegt (Avenues laufen entlang der z-Achse)
   3. Land/Wasser aus der Küstenlinie bestimmen
@@ -49,7 +51,67 @@ QUERIES = {
 }
 
 
+PBF = os.path.join(CACHE, 'NewYork.osm.pbf')
+LAT_MIN, LAT_MAX, LON_MIN, LON_MAX = 40.675, 40.895, -74.065, -73.885
+_pbf = None
+
+
+def load_pbf():
+    """Liest Gebäude, Straßen, Flächen und Küstenlinie aus der PBF-Datei (pyosmium)."""
+    import osmium
+
+    def inbox(lat, lon):
+        return LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX
+
+    out = {'buildings': [], 'roads': [], 'areas': [], 'coast': []}
+
+    class H(osmium.SimpleHandler):
+        def way(self, w):
+            t = w.tags
+            hw, nat = t.get('highway'), t.get('natural')
+            if not hw and nat != 'coastline':
+                return
+            try:
+                g = [{'lat': n.lat, 'lon': n.lon} for n in w.nodes]
+            except osmium.InvalidLocationError:
+                return
+            if not g or not any(inbox(p['lat'], p['lon']) for p in g[::max(1, len(g) // 8)] + [g[-1]]):
+                return
+            el = {'type': 'way', 'tags': dict(t), 'geometry': g, 'nodes': [n.ref for n in w.nodes]}
+            out['coast' if nat == 'coastline' else 'roads'].append(el)
+
+        def area(self, a):
+            t = a.tags
+            bkey = 'building' in t or 'building:part' in t
+            akey = (t.get('leisure') in ('park', 'garden', 'playground', 'pitch', 'dog_park', 'recreation_ground')
+                    or t.get('landuse') in ('grass', 'recreation_ground', 'cemetery', 'village_green', 'forest')
+                    or t.get('natural') in ('water', 'wood', 'scrub', 'grassland'))
+            if not bkey and not akey:
+                return
+            rings = []
+            try:
+                for r in a.outer_rings():
+                    ring = [(n.lat, n.lon) for n in r]
+                    if len(ring) >= 4 and inbox(*ring[0]):
+                        rings.append(ring)
+            except osmium.InvalidLocationError:
+                return
+            if rings:
+                (out['buildings'] if bkey else out['areas']).append({'type': 'poly', 'tags': dict(t), 'rings': rings})
+
+    print('  lese', PBF, '(dauert einige Minuten) …', flush=True)
+    H().apply_file(PBF, locations=True)
+    for k, v in out.items():
+        print(f'  {k}: {len(v)}', flush=True)
+    return out
+
+
 def fetch(name):
+    global _pbf
+    if os.path.exists(PBF):
+        if _pbf is None:
+            _pbf = load_pbf()
+        return {'elements': _pbf[name]}
     path = os.path.join(CACHE, name + '.json')
     if os.path.exists(path) and os.path.getsize(path) > 1000:
         return json.load(open(path))
@@ -133,6 +195,17 @@ def rel_polys(el):
 
 
 def el_polys(el):
+    if el['type'] == 'poly':
+        res = []
+        for ring in el['rings']:
+            p = Polygon([en(lat, lon) for lat, lon in ring])
+            if not p.is_valid:
+                p = make_valid(p)
+            if isinstance(p, MultiPolygon):
+                res += [q for q in p.geoms if q.area > 1]
+            elif isinstance(p, Polygon) and p.area > 1:
+                res.append(p)
+        return res
     if el['type'] == 'way':
         g = el.get('geometry') or []
         if len(g) < 4:
