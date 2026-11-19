@@ -7,7 +7,7 @@
   html,body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
   #hud, #help, #touch, #load { z-index:2; }
-  canvas { z-index:0; position:fixed; inset:0; display:block; width:100vw; height:100vh; }
+  canvas:not(#mini) { z-index:0; position:fixed; inset:0; display:block; width:100vw; height:100vh; }
   #hud { position:fixed; left:max(16px, env(safe-area-inset-left, 0px)); top:calc(12px + env(safe-area-inset-top, 0px));
     right:max(16px, env(safe-area-inset-right, 0px)); display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; pointer-events:none; }
   .sign { background:var(--sign); border:2px solid var(--sign-edge); border-radius:4px; padding:4px 10px; font-weight:700; font-size:15px; letter-spacing:.02em; }
@@ -20,14 +20,24 @@
   .seg button.on, #pxbox button.on { background:var(--accent); border-color:var(--accent); color:#13202c; }
   .seg button:focus-visible, #pxbox button:focus-visible { outline:2px solid #fff; outline-offset:2px; }
   #help { position:fixed; left:max(16px, env(safe-area-inset-left, 0px)); bottom:calc(16px + env(safe-area-inset-bottom, 0px)); font-size:12px; pointer-events:none; }
-  #touch { position:fixed; inset:auto 0 0 0; height:150px; display:none; pointer-events:none; }
-  #touch .btn { position:absolute; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); width:72px; height:72px; border:2px solid #fff;
-    background:rgba(20,28,36,.45); color:#fff; font-size:26px; display:flex; align-items:center; justify-content:center; pointer-events:auto; border-radius:10px; }
-  #tl { left:max(16px, env(safe-area-inset-left, 0px)); } #tr { left:calc(max(16px, env(safe-area-inset-left, 0px)) + 84px); }
-  #tu { right:max(16px, env(safe-area-inset-right, 0px)); bottom:calc(104px + env(safe-area-inset-bottom, 0px))!important; }
-  #td { right:calc(max(16px, env(safe-area-inset-right, 0px)) + 84px); bottom:calc(104px + env(safe-area-inset-bottom, 0px))!important; }
-  #touch { height:240px!important; }
-  #tb { right:calc(max(16px, env(safe-area-inset-right, 0px)) + 84px); } #tg { right:max(16px, env(safe-area-inset-right, 0px)); border-color:var(--accent)!important; }
+  #touch { position:fixed; inset:auto 0 0 0; height:220px; display:none; pointer-events:none; z-index:2; }
+  #joy { position:absolute; left:max(18px, env(safe-area-inset-left, 0px)); bottom:calc(30px + env(safe-area-inset-bottom, 0px)); width:132px; height:132px;
+    border-radius:50%; border:2px solid rgba(255,255,255,.75); background:rgba(20,28,36,.35); pointer-events:auto; touch-action:none; }
+  #knob { position:absolute; left:50%; top:50%; width:58px; height:58px; margin:-29px 0 0 -29px; border-radius:50%; background:rgba(255,255,255,.85); box-shadow:0 2px 6px rgba(0,0,0,.4); }
+  #touch .btn { position:absolute; display:flex; align-items:center; justify-content:center; pointer-events:auto; touch-action:none; border-radius:14px;
+    border:2px solid #fff; background:rgba(20,28,36,.45); color:#fff; font-weight:700; font-size:15px; letter-spacing:.03em; }
+  #tg { right:max(18px, env(safe-area-inset-right, 0px)); bottom:calc(30px + env(safe-area-inset-bottom, 0px)); width:78px; height:132px; border-color:var(--accent)!important; }
+  #tb { right:calc(max(18px, env(safe-area-inset-right, 0px)) + 92px); bottom:calc(30px + env(safe-area-inset-bottom, 0px)); width:78px; height:84px; }
+  #tu { right:max(18px, env(safe-area-inset-right, 0px)); bottom:calc(100px + env(safe-area-inset-bottom, 0px)); width:78px; height:62px; }
+  #td { right:max(18px, env(safe-area-inset-right, 0px)); bottom:calc(30px + env(safe-area-inset-bottom, 0px)); width:78px; height:62px; }
+  #touch .btn[hidden] { display:none; }
+  #touch .btn.down { background:rgba(255,198,26,.55); }
+  #mini { position:fixed; z-index:2; top:calc(12px + env(safe-area-inset-top, 0px)); right:max(16px, env(safe-area-inset-right, 0px));
+    width:148px; height:148px; border-radius:50%; border:3px solid #fff; box-shadow:0 2px 10px rgba(0,0,0,.4); background:#2b5470; cursor:pointer; touch-action:manipulation; }
+  #mini.big { width:min(300px, 70vw); height:min(300px, 70vw); }
+  #hud { right:calc(max(16px, env(safe-area-inset-right, 0px)) + 160px)!important; }
+  #qbox button { min-width:0; padding:0 8px; }
+  @media (max-width: 700px) { .panel, .sign { font-size:12px; } #pxbox { display:none; } #mini { width:118px; height:118px; } #hud { right:calc(max(16px, env(safe-area-inset-right, 0px)) + 128px)!important; } }
   @media (pointer:coarse) { #touch { display:block; } #help { display:none; } }
   #attr { position:fixed; z-index:2; right:max(8px, env(safe-area-inset-right, 0px)); bottom:calc(6px + env(safe-area-inset-bottom, 0px)); font-size:11px; background:var(--panel); padding:2px 6px; border-radius:3px; }
   #attr a { color:#cfe3ff; }
@@ -40,13 +50,15 @@
   <div class="sign" id="street">—</div>
   <div class="panel"><span id="kmh">0</span> km/h<span id="altbox" hidden> · Höhe <span id="alt">0</span> m</span></div>
   <div class="panel seg" id="modebox"><button data-mode="taxi" class="on">Taxi</button><button data-mode="heli">Helikopter</button></div>
+  <div class="panel seg" id="qbox">Grafik <button data-q="low">Schnell</button><button data-q="high">Schön</button></div>
   <div class="panel" id="pxbox">Pixel <button data-px="1">1</button><button data-px="2">2</button><button data-px="3">3</button><button data-px="4">4</button></div>
 </div>
 <div id="help" class="panel">W/↑ Gas · S/↓ Bremse · A D/← → Lenken · H Fahrzeug wechseln · +/− Pixelgröße</div>
+<canvas id="mini" width="300" height="300" title="Karte (antippen zum Vergrößern)"></canvas>
 <div id="touch">
-  <div class="btn" id="tl">◀</div><div class="btn" id="tr">▶</div>
-  <div class="btn" id="tb">■</div><div class="btn" id="tg">▲</div>
-  <div class="btn heli" id="tu" hidden>⤒</div><div class="btn heli" id="td" hidden>⤓</div>
+  <div id="joy"><div id="knob"></div></div>
+  <div class="btn" id="tb">Bremse</div><div class="btn" id="tg">Gas</div>
+  <div class="btn" id="tu" hidden>Hoch</div><div class="btn" id="td" hidden>Runter</div>
 </div>
 
 <script>
@@ -66,6 +78,9 @@ window.__started = false;
    Koordinaten: Meter, Ursprung Times Square, um 29° gedreht, damit das
    Manhattan-Raster achsparallel liegt. Norden (Uptown) = -z.
    ===================================================================== */
+const MOBILE = matchMedia('(pointer:coarse)').matches || Math.min(innerWidth, innerHeight) < 600;
+let QUALITY = MOBILE ? 'low' : 'high';
+try { const q = localStorage.getItem('mp-quality'); if (q === 'low' || q === 'high') QUALITY = q; } catch (e) {}
 let _s = 4242; const rnd = () => (_s = (_s * 16807) % 2147483647) / 2147483647;
 const pick = a => a[Math.floor(rnd() * a.length)];
 const hr = (i, k = 0) => { let h = (i * 374761393 + k * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -214,7 +229,7 @@ const TILE_M = [[12,12.8],[12,12.8],[12,12.8],[12,13.6],[13,15.2],[12,15.2],[12,
    ===================================================================== */
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 renderer.setPixelRatio(1);
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 renderer.debug.onShaderError = (gl, prog, vs, fs) => showErr('Shader-Fehler: ' + (gl.getShaderInfoLog(fs) || gl.getShaderInfoLog(vs) || gl.getProgramInfoLog(prog)));
 
@@ -229,7 +244,7 @@ const SUN_DIR = new THREE.Vector3(0.55, 0.78, 0.30).normalize();
 const sun = new THREE.DirectionalLight(new THREE.Color('#fff2de'), 2.5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
-const SH = 320; Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 10, far: 1400 });
+let SH = 320, SHMAP = 4096; Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH, near: 10, far: 1400 });
 sun.shadow.bias = -0.0015; sun.shadow.normalBias = 2.5;
 scene.add(sun, sun.target);
 
@@ -782,7 +797,7 @@ ROADS.forEach((r, ri) => {
 for (const p of parkPolys) {
   let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
   for (let i = 0; i < p.pts.length; i += 2) { x0 = Math.min(x0, p.pts[i]); x1 = Math.max(x1, p.pts[i]); z0 = Math.min(z0, p.pts[i + 1]); z1 = Math.max(z1, p.pts[i + 1]); }
-  const area = Math.abs(signedArea(p.pts)), n = Math.min(9000, Math.floor(area / (p.cls === 3 ? 60 : 260)));
+  const area = Math.abs(signedArea(p.pts)), n = Math.min(MOBILE ? 2500 : 9000, Math.floor(area / (p.cls === 3 ? 60 : 260) / (MOBILE ? 2.5 : 1)));
   for (let k = 0; k < n; k++) {
     const x = x0 + rnd() * (x1 - x0), z = z0 + rnd() * (z1 - z0);
     if (pointInPoly(p.pts, x, z) && !nearestRoad(x, z, 10, 2) && !inBuilding(x, z, 4, 1)) { trees.push([x, z]); addCol(x, z, 0.35); }
@@ -883,6 +898,7 @@ const traffic = [];
   });
   const keep = Math.min(1, 3500 / cand.length);
   cand.forEach((c, k) => { if (hr(k, 77) < keep) { const v = (c.r.cls <= 4 ? 10 : 7) + hr(k, 78) * 4; traffic.push({ ...c, v, cur: v, x: 0, z: 0, dx: 0, dz: 1 }); } });
+  for (let i = traffic.length - 1; i > 0; i--) { const j = Math.floor(hr(i, 96) * (i + 1)); [traffic[i], traffic[j]] = [traffic[j], traffic[i]]; }
 }
 const tBody = new THREE.BoxGeometry(1.8, 0.7, 4.4); tBody.translate(0, 0.62, 0);
 const tCab = new THREE.BoxGeometry(1.6, 0.55, 2.2); tCab.translate(0, 1.24, 0.2);
@@ -896,8 +912,10 @@ const trafficWheel = new THREE.InstancedMesh(tWheel, new THREE.MeshLambertMateri
   for (const m of [trafficBody, trafficCab, trafficWheel]) { m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); }
 }
 const TQ = new THREE.Quaternion(), TP = new THREE.Vector3(), ONE = new THREE.Vector3(1, 1, 1), TOFF = new THREE.Vector3();
+let trafficN = 0;
 function updateTraffic(dt, ax, az, cx, cz, all = false) {
   traffic.forEach((t, k) => {
+    if (!all && k >= trafficN) return;
     if (!all && Math.abs(t.x - cx) > 700 || !all && Math.abs(t.z - cz) > 700) { t.s = (t.s + t.dir * t.cur * dt + t.r.len) % t.r.len; return; }
     const along = (ax - t.x) * t.dx + (az - t.z) * t.dz, side = Math.abs((ax - t.x) * t.dz - (az - t.z) * t.dx);
     const target = (along > 0 && along < 11 && side < 1.8) ? 0 : t.v;     // vor dem Taxi anhalten
@@ -931,6 +949,7 @@ const peds = [];
   });
   const keep = Math.min(1, 3500 / cand.length);
   cand.forEach((c, k) => { if (hr(k, 90) < keep) peds.push(c); });
+  for (let i = peds.length - 1; i > 0; i--) { const j = Math.floor(hr(i, 95) * (i + 1)); [peds[i], peds[j]] = [peds[j], peds[i]]; }
 }
 const pedParts = (() => {
   const mk = (geo, cnt) => { const m = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: 0xffffff }), Math.max(1, cnt)); m.count = cnt; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); return m; };
@@ -950,11 +969,14 @@ const pedParts = (() => {
   return P;
 })();
 const PQ = new THREE.Quaternion(), PQ2 = new THREE.Quaternion(), PE = new THREE.Euler(0, 0, 0, 'YXZ'), PV = new THREE.Vector3(), POFF = new THREE.Vector3();
+let pedN = 0;
 function updatePeds(dt, cxp, czp) {
   peds.forEach((p, k) => {
+    if (k >= pedN) return;
+    if (cxp !== null && p.x !== undefined && (Math.abs(p.x - cxp) > 320 || Math.abs(p.z - czp) > 320)) { p.s = Math.max(0, Math.min(p.r.len, p.s + p.dir * p.v * dt)); return; }
     p.s += p.dir * p.v * dt;
     if (p.s < 0 || p.s > p.r.len) { p.dir *= -1; p.s = Math.max(0, Math.min(p.r.len, p.s)); }
-    const [x0, z0, dx, dz] = roadAt(p.r, p.s), x = x0 - dz * p.off, z = z0 + dx * p.off;
+    const [x0, z0, dx, dz] = roadAt(p.r, p.s), x = x0 - dz * p.off, z = z0 + dx * p.off; p.x = x; p.z = z;
     if (cxp !== null && (Math.abs(x - cxp) > 300 || Math.abs(z - czp) > 300)) return;
     if (cxp !== null && inBuilding(x + dx * p.dir * 0.6, z + dz * p.dir * 0.6, 1)) p.dir *= -1;   // Hindernis -> umdrehen
     p.ph += p.v * dt * 5.2;
@@ -1011,6 +1033,7 @@ function setMode(m) {
   document.querySelectorAll('#modebox button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
   document.getElementById('altbox').hidden = m !== 'heli';
   for (const id of ['tu', 'td']) document.getElementById(id).hidden = m !== 'heli';
+  for (const id of ['tg', 'tb']) document.getElementById(id).hidden = m === 'heli';
   document.getElementById('help').textContent = m === 'heli'
     ? 'W/↑ vorwärts · S/↓ rückwärts · A D/← → drehen · Leertaste/E steigen · Shift/Q sinken · H Fahrzeug wechseln'
     : 'W/↑ Gas · S/↓ Bremse · A D/← → Lenken · H Fahrzeug wechseln · +/− Pixelgröße';
@@ -1022,12 +1045,93 @@ addEventListener('keydown', e => { keys[e.code] = true;
   if (e.key === '+' || e.code === 'NumpadAdd') { px = Math.min(5, px + 1); resize(); }
   if (e.key === '-' || e.code === 'NumpadSubtract') { px = Math.max(1, px - 1); resize(); } });
 addEventListener('keyup', e => keys[e.code] = false);
-const touch = { l: false, r: false, g: false, b: false, u: false, d: false };
-for (const [id, k] of [['tl', 'l'], ['tr', 'r'], ['tg', 'g'], ['tb', 'b'], ['tu', 'u'], ['td', 'd']]) {
+const touch = { g: false, b: false, u: false, d: false, jx: 0, jy: 0 };
+for (const [id, k] of [['tg', 'g'], ['tb', 'b'], ['tu', 'u'], ['td', 'd']]) {
   const el = document.getElementById(id);
-  el.addEventListener('pointerdown', e => { touch[k] = true; e.preventDefault(); });
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, () => touch[k] = false);
+  el.addEventListener('pointerdown', e => { touch[k] = true; el.classList.add('down'); el.setPointerCapture(e.pointerId); e.preventDefault(); });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, () => { touch[k] = false; el.classList.remove('down'); });
 }
+{ // Steuerknüppel: Daumen links, analog
+  const joy = document.getElementById('joy'), knob = document.getElementById('knob');
+  let id = null;
+  const move = e => {
+    const r = joy.getBoundingClientRect(), R = r.width / 2;
+    let dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R); const l = Math.hypot(dx, dy), m = R * 0.8;
+    if (l > m) { dx *= m / l; dy *= m / l; }
+    touch.jx = dx / m; touch.jy = dy / m; knob.style.transform = `translate(${dx}px, ${dy}px)`;
+  };
+  joy.addEventListener('pointerdown', e => { id = e.pointerId; joy.setPointerCapture(id); move(e); e.preventDefault(); });
+  joy.addEventListener('pointermove', e => { if (e.pointerId === id) move(e); });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) joy.addEventListener(ev, e => { if (e.pointerId !== id) return; id = null; touch.jx = touch.jy = 0; knob.style.transform = ''; });
+}
+// Ein Touch-Joystick schwächt sehr kleine Ausschläge ab (Totzone + weiche Kennlinie)
+const jcurve = v => { const a = Math.max(0, Math.abs(v) - 0.12) / 0.88; return Math.sign(v) * a * a * (2 - a); };
+
+/* ---------- Qualitätsstufe umschalten ---------- */
+function applyQuality(q) {
+  QUALITY = q; try { localStorage.setItem('mp-quality', q); } catch (e) {}
+  const low = q === 'low';
+  SH = low ? 130 : 320; SHMAP = low ? 1024 : 4096;
+  sun.shadow.mapSize.set(SHMAP, SHMAP); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+  Object.assign(sun.shadow.camera, { left: -SH, right: SH, top: SH, bottom: -SH }); sun.shadow.camera.updateProjectionMatrix();
+  camera.far = low ? 2600 : 12000; scene.fog.density = low ? 0.0009 : 0.00028;
+  sky.scale.setScalar(camera.far * 0.9 / 8000);   // Himmel muss innerhalb der Sichtweite liegen
+  postMat.uniforms.far.value = camera.far; camera.updateProjectionMatrix();
+  trafficN = Math.min(traffic.length, low ? 900 : traffic.length); pedN = Math.min(peds.length, low ? 700 : peds.length);
+  trafficBody.count = trafficCab.count = trafficN; trafficWheel.count = trafficN * 2;
+  pedParts.torso.count = pedParts.head.count = pedN; pedParts.leg.count = pedParts.arm.count = pedN * 2;
+  document.querySelectorAll('#qbox button').forEach(b => b.classList.toggle('on', b.dataset.q === q));
+}
+document.querySelectorAll('#qbox button').forEach(b => b.addEventListener('click', () => { applyQuality(b.dataset.q); b.blur(); }));
+applyQuality(QUALITY);
+
+/* ---------- Minikarte: einmal als großes Bild gezeichnet, dann nur Ausschnitt ---------- */
+const MAP = (() => {
+  const MS = MOBILE ? 6 : 4, pad = 600;                     // Meter je Kartenpixel
+  const x0 = LANDR.x0 - pad, z0 = LANDR.z0 - pad, w = Math.ceil((LANDR.w * LANDR.S + 2 * pad) / MS), h = Math.ceil((LANDR.h * LANDR.S + 2 * pad) / MS);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const c = cv.getContext('2d');
+  const path = (pts, close = true) => { c.beginPath(); for (let i = 0; i < pts.length; i += 2) c[i ? 'lineTo' : 'moveTo']((pts[i] - x0) / MS, (pts[i + 1] - z0) / MS); if (close) c.closePath(); };
+  c.fillStyle = '#2f5f7e'; c.fillRect(0, 0, w, h);
+  c.fillStyle = '#d8d3c8'; for (const l of DATA.land) { path(unpack(l, 1)); c.fill(); }
+  for (const a of DATA.areas) { c.fillStyle = a[0] === 2 ? '#4f88ad' : a[0] === 3 ? '#5f8a45' : a[0] === 5 ? '#c9b48e' : '#86ad62'; path(unpack(a, 1)); c.fill(); }
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  const order = ROADS.map((r, i) => i).sort((a, b) => ROADS[b].cls - ROADS[a].cls);
+  for (const i of order) { const r = ROADS[i];
+    c.strokeStyle = r.cls >= 10 ? '#efe6d2' : r.cls <= 2 ? '#f0b44a' : r.cls <= 4 ? '#f7e3a1' : '#ffffff';
+    c.lineWidth = Math.max(r.cls >= 10 ? 0.6 : 1, r.w / MS); path(r.pts, false); c.stroke(); }
+  c.fillStyle = '#9b958b'; for (const b of BLD) { if (b.mh > 0.5) continue; path(b.pts); c.fill(); }
+  return { cv, x0, z0, MS };
+})();
+const mini = document.getElementById('mini'), mctx = mini.getContext('2d');
+let miniBig = false;
+mini.addEventListener('click', () => { miniBig = !miniBig; mini.classList.toggle('big', miniBig); });
+function drawMini(px0, pz0, fx, fz, alt) {
+  const W2 = mini.width, R = W2 / 2;
+  const radius = (miniBig ? 900 : 380) + Math.min(1500, alt * 3);        // gezeigter Umkreis in Metern
+  const k = R / radius, phi = -Math.PI / 2 - Math.atan2(fz, fx);       // Karte so drehen, dass "vorne" oben ist
+  mctx.save(); mctx.clearRect(0, 0, W2, W2);
+  mctx.beginPath(); mctx.arc(R, R, R, 0, Math.PI * 2); mctx.clip();
+  mctx.fillStyle = '#2f5f7e'; mctx.fillRect(0, 0, W2, W2);
+  mctx.translate(R, R); mctx.rotate(phi); mctx.scale(k * MAP.MS, k * MAP.MS);
+  mctx.imageSmoothingEnabled = false;
+  mctx.drawImage(MAP.cv, -(px0 - MAP.x0) / MAP.MS, -(pz0 - MAP.z0) / MAP.MS);
+  mctx.restore();
+  const mark = (wx, wz, col) => {   // weitere Markierung (z. B. das Taxi, wenn man fliegt)
+    const dx = wx - px0, dz = wz - pz0, c = Math.cos(phi), s = Math.sin(phi);
+    let x = (dx * c - dz * s) * k, y = (dx * s + dz * c) * k; const l = Math.hypot(x, y); if (l > R - 8) { x *= (R - 8) / l; y *= (R - 8) / l; }
+    mctx.fillStyle = col; mctx.strokeStyle = '#000'; mctx.lineWidth = 2; mctx.beginPath(); mctx.arc(R + x, R + y, 6, 0, 7); mctx.fill(); mctx.stroke();
+  };
+  if (mode === 'heli') mark(S.x, S.z, '#f5c518');
+  // Nordpfeil (Raster-Norden = -z)
+  { const c = Math.cos(phi), s = Math.sin(phi), nx = s * -1 * -1, ny = c * -1; const l = R - 14;
+    mctx.fillStyle = '#fff'; mctx.font = 'bold 15px Helvetica, Arial, sans-serif'; mctx.textAlign = 'center'; mctx.textBaseline = 'middle';
+    mctx.strokeStyle = '#000'; mctx.lineWidth = 3; mctx.strokeText('N', R + nx * l, R + ny * l); mctx.fillText('N', R + nx * l, R + ny * l); }
+  // eigenes Fahrzeug als Pfeil in der Mitte
+  mctx.fillStyle = mode === 'heli' ? '#3d8bff' : '#f5c518'; mctx.strokeStyle = '#000'; mctx.lineWidth = 2;
+  mctx.beginPath(); mctx.moveTo(R, R - 11); mctx.lineTo(R + 8, R + 9); mctx.lineTo(R, R + 4); mctx.lineTo(R - 8, R + 9); mctx.closePath(); mctx.fill(); mctx.stroke();
+}
+let miniT = 0;
 
 /* =====================================================================
    8) HAUPTSCHLEIFE
@@ -1042,17 +1146,19 @@ resize();
 const camPos = new THREE.Vector3(S.x + Math.sin(S.yaw) * 10, 4, S.z + Math.cos(S.yaw) * 10);
 const clock = new THREE.Clock(), tgt = new THREE.Vector3();
 let hudT = 0;
+const portraitFov = () => camera.aspect < 1 ? Math.min(30, (1 / camera.aspect - 1) * 22) : 0;
 
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const gas = keys.KeyW || keys.ArrowUp || touch.g, brk = keys.KeyS || keys.ArrowDown || touch.b;
-  const left = keys.KeyA || keys.ArrowLeft || touch.l, right = keys.KeyD || keys.ArrowRight || touch.r;
+  const left = keys.KeyA || keys.ArrowLeft, right = keys.KeyD || keys.ArrowRight;
+  const jx = jcurve(touch.jx), jy = jcurve(touch.jy);
   let px0, pz0, fx, fz, speed;
 
   if (mode === 'taxi') {
     if (gas) S.v += 14 * dt; else if (brk) S.v -= (S.v > 0 ? 28 : 8) * dt; else S.v *= 1 - 0.5 * dt;
     S.v = Math.max(-8, Math.min(S.v, 30));
-    S.steer += (((left ? 1 : 0) - (right ? 1 : 0)) - S.steer) * Math.min(1, 8 * dt);
+    S.steer += (Math.max(-1, Math.min(1, (left ? 1 : 0) - (right ? 1 : 0) - jx)) - S.steer) * Math.min(1, 8 * dt);
     const nyaw = S.yaw + S.steer * dt * Math.min(1, Math.abs(S.v) / 6) * 1.7 * Math.sign(S.v || 1);
     fx = -Math.sin(nyaw); fz = -Math.cos(nyaw);
     const nx = S.x + fx * S.v * dt, nz = S.z + fz * S.v * dt;
@@ -1070,10 +1176,10 @@ function frame() {
     tgt.set(S.x - fx * back, 3.3 + S.v * 0.03, S.z - fz * back);
     camPos.lerp(tgt, snapCam ? 1 : 1 - Math.pow(0.002, dt)); snapCam = false;
     camera.position.copy(camPos); camera.lookAt(S.x + fx * 8, 2.4, S.z + fz * 8);
-    camera.fov = 64 + S.v * 0.3;
+    camera.fov = 64 + S.v * 0.3 + portraitFov();
     px0 = S.x; pz0 = S.z; speed = Math.abs(S.v);
   } else {
-    const fwd = (gas ? 1 : 0) - (brk ? 1 : 0), turn = (left ? 1 : 0) - (right ? 1 : 0);
+    const fwd = Math.max(-1, Math.min(1, (gas ? 1 : 0) - (brk ? 1 : 0) - jy)), turn = Math.max(-1, Math.min(1, (left ? 1 : 0) - (right ? 1 : 0) - jx));
     const up = ((keys.Space || keys.KeyE || touch.u) ? 1 : 0) - ((keys.ShiftLeft || keys.ShiftRight || keys.KeyQ || touch.d) ? 1 : 0);
     H.yawRate += (turn * 1.3 - H.yawRate) * Math.min(1, 5 * dt);
     H.yaw += H.yawRate * dt;
@@ -1094,7 +1200,7 @@ function frame() {
     tgt.set(H.x - fx * back, H.y + 5.5, H.z - fz * back);
     camPos.lerp(tgt, snapCam ? 1 : 1 - Math.pow(0.01, dt)); snapCam = false;
     camera.position.copy(camPos); camera.lookAt(H.x + fx * 12, H.y - 1, H.z + fz * 12);
-    camera.fov = 64 + Math.abs(vf) * 0.15;
+    camera.fov = 64 + Math.abs(vf) * 0.15 + portraitFov();
     px0 = H.x; pz0 = H.z; speed = Math.hypot(H.vx, H.vz);
     document.getElementById('alt').textContent = Math.round(H.y);
   }
@@ -1112,6 +1218,7 @@ function frame() {
 
   document.getElementById('kmh').textContent = Math.round(speed * 3.6);
   if ((hudT -= dt) <= 0) { hudT = 0.25; document.getElementById('street').textContent = streetName(px0, pz0); }
+  if ((miniT -= dt) <= 0) { miniT = MOBILE ? 0.1 : 0.05; drawMini(px0, pz0, fx, fz, mode === 'heli' ? H.y : 0); }
   renderer.setRenderTarget(rt); renderer.render(scene, camera);
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
   if (!window.__started) { window.__started = true; const l = document.getElementById('load'); if (l && !l.querySelector('b')) l.remove(); }
