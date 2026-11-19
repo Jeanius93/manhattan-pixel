@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Manhattan Pixel</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
@@ -8,6 +8,8 @@
   html,body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
   #hud, #help, #touch, #load { z-index:2; }
+  html, body, body * { touch-action:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   canvas:not(#mini) { z-index:0; position:fixed; inset:0; display:block; width:100vw; height:100vh; }
   #hud { position:fixed; left:max(16px, env(safe-area-inset-left, 0px)); top:calc(12px + env(safe-area-inset-top, 0px));
     right:max(16px, env(safe-area-inset-right, 0px)); display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; pointer-events:none; }
@@ -69,6 +71,12 @@
 </div>
 
 <script>
+  // Doppeltippen und Zwei-Finger-Zoom abfangen (iOS ignoriert sonst user-scalable=no)
+  (() => { let last = 0;
+    document.addEventListener('touchend', e => { const now = Date.now(); if (now - last < 350) e.preventDefault(); last = now; }, { passive: false });
+    for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+    document.addEventListener('touchmove', e => { if (e.scale !== undefined && e.scale !== 1) e.preventDefault(); }, { passive: false });
+  })();
   // Fehler sichtbar machen statt endlos "wird gebaut"
   function showErr(msg){ const el = document.getElementById('load'); if (el) { el.style.cssText += ';flex-direction:column;gap:8px;padding:16px;text-align:center';
     el.innerHTML = '<b>Fehler beim Starten</b><span style="font:12px monospace;max-width:90vw;word-break:break-word"></span>'; el.lastChild.textContent = msg; } }
@@ -370,6 +378,28 @@ function buildCar(color = '#f5c518', taxi = true) {
     add(wheel, L('#121212'), x, 0.36, z, 0, 0, Math.PI / 2); add(hub, chrome, x, 0.36, z, 0, 0, Math.PI / 2);
   }
   scene.add(car); return car;
+}
+function buildMoto(color = '#b5161b', riderCol = '#e4572e') {
+  const g = new THREE.Group();
+  const L = c => new THREE.MeshLambertMaterial({ color: c });
+  const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; g.add(m); return m; };
+  const box = (w, h, d) => new THREE.BoxGeometry(w, h, d), col = L(color), dark = L('#18191b'), chrome = L('#a8adb2');
+  add(box(0.3, 0.32, 1.35), dark, 0, 0.62, 0);                  // Rahmen
+  add(box(0.44, 0.26, 0.62), col, 0, 0.92, -0.22);              // Tank
+  add(box(0.36, 0.12, 0.62), dark, 0, 0.94, 0.36);              // Sitz
+  add(box(0.4, 0.22, 0.42), col, 0, 0.82, 0.72);                // Heck
+  add(box(0.12, 0.12, 0.6), chrome, 0.2, 0.42, 0.45);           // Auspuff
+  add(box(0.72, 0.05, 0.05), chrome, 0, 1.14, -0.62);           // Lenker
+  add(box(0.06, 0.55, 0.06), chrome, 0, 0.82, -0.7, 0.35);      // Gabel
+  add(box(0.18, 0.14, 0.08), new THREE.MeshBasicMaterial({ color: '#fff8e0' }), 0, 1.0, -0.86);   // Scheinwerfer
+  const wheel = new THREE.CylinderGeometry(0.33, 0.33, 0.14, 16);
+  for (const z of [-0.78, 0.72]) add(wheel, dark, 0, 0.33, z, 0, 0, Math.PI / 2);
+  // Fahrer/in (vorgebeugt)
+  const rc = L(riderCol), pants = L('#26314f');
+  add(box(0.42, 0.58, 0.26), rc, 0, 1.36, 0.12, -0.35);
+  add(new THREE.SphereGeometry(0.17, 12, 10), L('#202226'), 0, 1.78, -0.04);
+  for (const sx of [-0.2, 0.2]) { add(box(0.11, 0.5, 0.12), rc, sx, 1.3, -0.3, -1.0); add(box(0.15, 0.55, 0.16), pants, sx * 0.9, 0.86, 0.2, 0.6); }
+  scene.add(g); return g;
 }
 let car = buildCar();          // das Auto, in dem man gerade sitzt (null = zu Fuß)
 
@@ -912,15 +942,28 @@ for (const p of parkPolys) {
   const red = new THREE.MeshLambertMaterial({ color: '#b8231d' });
   instanced(hb, red, hydrants, h => M.makeTranslation(h[0], 0, h[1]), [true, true], 200); instanced(hc, red, hydrants, h => M.makeTranslation(h[0], 0, h[1]), [true, true], 200);
 }
-{ // parkende Autos
+const mBodyG = new THREE.BoxGeometry(0.42, 0.5, 2.0); mBodyG.translate(0, 0.72, 0);
+const mWheelG = new THREE.CylinderGeometry(0.33, 0.33, 0.14, 10); mWheelG.rotateZ(Math.PI / 2); mWheelG.translate(0, 0.33, 0);
+{ // parkende Autos und Motorräder
+  parked.forEach((p, k) => { p.moto = hr(k, 61) < 0.1; });
+  const cars = parked.filter(p => !p.moto), motos = parked.filter(p => p.moto);
+  cars.forEach((p, i) => p.idx = i); motos.forEach((p, i) => p.idx = i);
   const body = new THREE.BoxGeometry(1.8, 0.75, 4.4); body.translate(0, 0.62, 0);
   const cab = new THREE.BoxGeometry(1.6, 0.55, 2.2); cab.translate(0, 1.25, 0.15);
   const set = p => M.compose(V.set(p[0], 0, p[1]), Q.setFromAxisAngle(UP, p[2]), Sc.set(1, 1, 1));
-  const bm = instanced(body, new THREE.MeshLambertMaterial({ color: 0xffffff }), parked, set, [true, true], 450);
+  const bm = instanced(body, new THREE.MeshLambertMaterial({ color: 0xffffff }), cars, set, [true, true], 450);
   const cols = ['#e9e9e6', '#1d1f22', '#7b8086', '#9a1f1f', '#203a5c', '#c9c4b8', '#3b3f45', '#5a6b4a', '#2c3e50', '#b0b4b8'].map(c => new THREE.Color(c));
-  parked.forEach((p, k) => { p.col = cols[Math.floor(hr(k, 60) * cols.length)]; bm.setColorAt(k, p.col); });
-  PARKED_MESH.push(bm);
-  PARKED_MESH.push(instanced(cab, new THREE.MeshLambertMaterial({ color: '#25303a' }), parked, set, [true, true], 450));
+  cars.forEach((p, k) => { p.col = cols[Math.floor(hr(k, 60) * cols.length)]; bm.setColorAt(k, p.col); });
+  const cm = instanced(cab, new THREE.MeshLambertMaterial({ color: '#25303a' }), cars, set, [true, true], 450);
+  for (const p of cars) p.meshes = [bm, cm];
+  // Motorräder stehen schräg am Bordstein
+  const mset = p => M.compose(V.set(p[0], 0, p[1]), Q.setFromAxisAngle(UP, p[2] + 0.5), Sc.set(1, 1, 1));
+  const mb = instanced(mBodyG, new THREE.MeshLambertMaterial({ color: 0xffffff }), motos, mset, [true, true], 300);
+  const mcols = ['#b5161b', '#1d1f22', '#1f4e8c', '#e8e8e8', '#e07b00', '#2e7d32'].map(c => new THREE.Color(c));
+  motos.forEach((p, k) => { p.col = mcols[Math.floor(hr(k, 62) * mcols.length)]; mb.setColorAt(k, p.col); });
+  const mwf = instanced(mWheelG, new THREE.MeshLambertMaterial({ color: '#141414' }), motos, p => { mset(p); M.multiply(new THREE.Matrix4().makeTranslation(0, 0, -0.8)); }, [true, true], 300);
+  const mwb = instanced(mWheelG, new THREE.MeshLambertMaterial({ color: '#141414' }), motos, p => { mset(p); M.multiply(new THREE.Matrix4().makeTranslation(0, 0, 0.75)); }, [true, true], 300);
+  for (const p of motos) { p.meshes = [mb, mwf, mwb]; for (const c of p.cols) c.r = 0.6; }
 }
 { // grüne Straßenschilder und Ampeln an den echten Kreuzungen
   const used = [...new Set(INTER.flatMap(it => [it.n1, it.n2]))], row = new Map(used.map((n, i) => [n, i]));
@@ -989,6 +1032,7 @@ const traffic = [];
   const keep = Math.min(1, 3500 / cand.length);
   cand.forEach((c, k) => { if (hr(k, 77) < keep) { const v = (c.r.cls <= 4 ? 10 : 7) + hr(k, 78) * 4; traffic.push({ ...c, v, cur: v, x: 0, z: 0, dx: 0, dz: 1 }); } });
   for (let i = traffic.length - 1; i > 0; i--) { const j = Math.floor(hr(i, 96) * (i + 1)); [traffic[i], traffic[j]] = [traffic[j], traffic[i]]; }
+  traffic.forEach((t, k) => { if (hr(k, 97) < 0.15) { t.moto = true; t.v *= 1.15; } });
 }
 const tBody = new THREE.BoxGeometry(1.8, 0.7, 4.4); tBody.translate(0, 0.62, 0);
 const tCab = new THREE.BoxGeometry(1.6, 0.55, 2.2); tCab.translate(0, 1.24, 0.2);
@@ -996,9 +1040,22 @@ const tWheel = new THREE.BoxGeometry(1.9, 0.5, 0.6); tWheel.translate(0, 0.27, 0
 const trafficBody = new THREE.InstancedMesh(tBody, new THREE.MeshLambertMaterial({ color: 0xffffff }), traffic.length);
 const trafficCab = new THREE.InstancedMesh(tCab, new THREE.MeshLambertMaterial({ color: '#26313b' }), traffic.length);
 const trafficWheel = new THREE.InstancedMesh(tWheel, new THREE.MeshLambertMaterial({ color: '#111' }), traffic.length * 2);
+// Motorräder im Verkehr (eigene Modelle, gleiche Nummerierung wie die Autos)
+const mRiderG = new THREE.BoxGeometry(0.44, 0.62, 0.3); mRiderG.translate(0, 1.36, 0.1);
+const mHelmG = new THREE.SphereGeometry(0.17, 8, 6); mHelmG.translate(0, 1.8, -0.02);
+const motoBody = new THREE.InstancedMesh(mBodyG, new THREE.MeshLambertMaterial({ color: 0xffffff }), traffic.length);
+const motoWheel = new THREE.InstancedMesh(mWheelG, new THREE.MeshLambertMaterial({ color: '#141414' }), traffic.length * 2);
+const motoRider = new THREE.InstancedMesh(mRiderG, new THREE.MeshLambertMaterial({ color: '#2a2d33' }), traffic.length);
+const motoHelm = new THREE.InstancedMesh(mHelmG, new THREE.MeshLambertMaterial({ color: 0xffffff }), traffic.length);
+const ZM = new THREE.Matrix4().makeScale(0, 0, 0);
 {
   const cols = ['#f5c518', '#f5c518', '#f5c518', '#e9e9e6', '#1d1f22', '#7b8086', '#9a1f1f', '#203a5c', '#c9c4b8', '#3b3f45', '#5a6b4a'].map(c => new THREE.Color(c));
-  traffic.forEach((t, k) => { t.col = cols[Math.floor(hr(k, 79) * cols.length)]; trafficBody.setColorAt(k, t.col); });
+  const mcols = ['#b5161b', '#1d1f22', '#1f4e8c', '#e8e8e8', '#e07b00', '#2e7d32'].map(c => new THREE.Color(c));
+  traffic.forEach((t, k) => {
+    t.col = t.moto ? mcols[Math.floor(hr(k, 80) * mcols.length)] : cols[Math.floor(hr(k, 79) * cols.length)];
+    trafficBody.setColorAt(k, t.col); motoBody.setColorAt(k, t.col); motoHelm.setColorAt(k, mcols[Math.floor(hr(k, 81) * mcols.length)]);
+  });
+  for (const m of [motoBody, motoWheel, motoRider, motoHelm]) { m.castShadow = PROP_SHADOWS; m.receiveShadow = true; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); }
   for (const m of [trafficBody, trafficCab, trafficWheel]) { m.castShadow = PROP_SHADOWS; m.receiveShadow = true; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); }
 }
 const TQ = new THREE.Quaternion(), TP = new THREE.Vector3(), ONE = new THREE.Vector3(1, 1, 1), TOFF = new THREE.Vector3();
@@ -1016,10 +1073,18 @@ function updateTraffic(dt, ax, az, cx, cz, all = false) {
     t.dx = dx * t.dir; t.dz = dz * t.dir;
     t.x = x - dz * t.off; t.z = z + dx * t.off;
     TQ.setFromAxisAngle(UP, Math.atan2(-t.dx, -t.dz));
-    M.compose(TP.set(t.x, 0, t.z), TQ, ONE); trafficBody.setMatrixAt(k, M); trafficCab.setMatrixAt(k, M);
-    for (let w = 0; w < 2; w++) { TOFF.set(0, 0, w ? 1.4 : -1.4).applyQuaternion(TQ); M.compose(TP.set(t.x + TOFF.x, 0, t.z + TOFF.z), TQ, ONE); trafficWheel.setMatrixAt(k * 2 + w, M); }
+    M.compose(TP.set(t.x, 0, t.z), TQ, ONE);
+    if (t.moto) {
+      motoBody.setMatrixAt(k, M); motoRider.setMatrixAt(k, M); motoHelm.setMatrixAt(k, M);
+      trafficBody.setMatrixAt(k, ZM); trafficCab.setMatrixAt(k, ZM); trafficWheel.setMatrixAt(k * 2, ZM); trafficWheel.setMatrixAt(k * 2 + 1, ZM);
+      for (let w = 0; w < 2; w++) { TOFF.set(0, 0, w ? 0.75 : -0.8).applyQuaternion(TQ); M.compose(TP.set(t.x + TOFF.x, 0, t.z + TOFF.z), TQ, ONE); motoWheel.setMatrixAt(k * 2 + w, M); }
+    } else {
+      trafficBody.setMatrixAt(k, M); trafficCab.setMatrixAt(k, M);
+      motoBody.setMatrixAt(k, ZM); motoRider.setMatrixAt(k, ZM); motoHelm.setMatrixAt(k, ZM); motoWheel.setMatrixAt(k * 2, ZM); motoWheel.setMatrixAt(k * 2 + 1, ZM);
+      for (let w = 0; w < 2; w++) { TOFF.set(0, 0, w ? 1.4 : -1.4).applyQuaternion(TQ); M.compose(TP.set(t.x + TOFF.x, 0, t.z + TOFF.z), TQ, ONE); trafficWheel.setMatrixAt(k * 2 + w, M); }
+    }
   });
-  trafficBody.instanceMatrix.needsUpdate = trafficCab.instanceMatrix.needsUpdate = trafficWheel.instanceMatrix.needsUpdate = true;
+  for (const m of [trafficBody, trafficCab, trafficWheel, motoBody, motoWheel, motoRider, motoHelm]) m.instanceMatrix.needsUpdate = true;
 }
 updateTraffic(0, 1e9, 1e9, 0, 0, true);
 
@@ -1097,15 +1162,15 @@ const S = { x: 0, z: 0, yaw: 0, v: 0, steer: 0 };
   const nr = nearestRoad(0, 0, 4, 400) || nearestRoad(0, 0, 6, 1500);
   if (nr) { const [x, z, dx, dz] = roadAt(nr.r, nr.s), off = nr.r.one ? nr.r.w / 4 : nr.r.w / 4; S.x = x - dz * off; S.z = z + dx * off; S.yaw = Math.atan2(-dx, -dz); }
 }
-function blockedCar(x, z, yaw) {
-  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = -fz, rz = fx;
-  for (const [a, b] of [[2.1, 0.85], [2.1, -0.85], [-2.1, 0.85], [-2.1, -0.85], [0, 0]]) {
+function blockedCar(x, z, yaw, moto = false) {
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = -fz, rz = fx, la = moto ? 1.0 : 2.1, wb = moto ? 0.3 : 0.85, cr = moto ? 0.45 : 0.9;
+  for (const [a, b] of [[la, wb], [la, -wb], [-la, wb], [-la, -wb], [0, 0]]) {
     const px = x + fx * a + rx * b, pz = z + fz * a + rz * b;
     if (!LANDR.on(px, pz) || inBuilding(px, pz, 0.5)) return true;
   }
-  for (const [a] of [[1.4], [-1.4]]) {
+  for (const [a] of (moto ? [[0.6], [-0.6]] : [[1.4], [-1.4]])) {
     const px = x + fx * a, pz = z + fz * a;
-    for (const c of colliders.at(px, pz)) if (c.r > 0 && Math.hypot(c.x - px, c.z - pz) < c.r + 0.9) return true;
+    for (const c of colliders.at(px, pz)) if (c.r > 0 && Math.hypot(c.x - px, c.z - pz) < c.r + cr) return true;
   }
   return false;
 }
@@ -1121,7 +1186,7 @@ let mode = 'car', snapCam = false;          // 'car' | 'foot' | 'heli'
 let toastT = 0;
 function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.opacity = 1; toastT = 2.2; }
 const HELP = {
-  car: 'W/↑ Gas · S/↓ Bremse · A D/← → Lenken · F Aussteigen · H Helikopter · +/− Pixelgröße',
+  car: 'W/↑ Gas · S/↓ Bremse · A D/← → Lenken · F Aussteigen · H Helikopter · +/− Pixelgröße',  // gilt für Auto und Motorrad
   foot: 'W/↑ gehen · S/↓ zurück · A D/← → drehen · Shift rennen · Leertaste/Klick schießen · F Einsteigen',
   heli: 'W/↑ vorwärts · S/↓ rückwärts · A D/← → drehen · Leertaste/E steigen · Shift/Q sinken · F Aussteigen (am Boden) · H Auto',
 };
@@ -1139,10 +1204,11 @@ function updateUI() {
 function parkCar() {
   if (!car) return;
   const fx = -Math.sin(S.yaw), fz = -Math.cos(S.yaw);
-  myCars.push({ g: car, x: S.x, z: S.z, yaw: S.yaw, cols: [addCol(S.x - fx * 1.2, S.z - fz * 1.2, 1.0), addCol(S.x + fx * 1.2, S.z + fz * 1.2, 1.0)] });
+  const r = S.moto ? 0.6 : 1.0, o = S.moto ? 0.6 : 1.2; car.rotation.z = 0;
+  myCars.push({ g: car, moto: S.moto, x: S.x, z: S.z, yaw: S.yaw, cols: [addCol(S.x - fx * o, S.z - fz * o, r), addCol(S.x + fx * o, S.z + fz * o, r)] });
   car = null;
 }
-function takeCar(g, x, z, yaw) { car = g; S.x = x; S.z = z; S.yaw = yaw; S.v = 0; S.steer = 0; car.position.set(x, 0, z); car.rotation.y = yaw; }
+function takeCar(g, x, z, yaw, moto = false) { car = g; S.moto = moto; S.x = x; S.z = z; S.yaw = yaw; S.v = 0; S.steer = 0; car.position.set(x, 0, z); car.rotation.set(0, yaw, 0); }
 const hex = c => '#' + c.getHexString();
 function nearestVehicle(x, z) {
   let best = null, bd = 4.5;
@@ -1168,16 +1234,19 @@ function action() {
     const v = nearestVehicle(P.x, P.z);
     if (!v) { toast('Kein Fahrzeug in der Nähe – geh näher heran'); return; }
     if (v.kind === 'heli') { mode = 'heli'; H.vx = H.vy = H.vz = H.yawRate = 0; }
-    else if (v.kind === 'mine') { const c = myCars.splice(v.i, 1)[0]; for (const cc of c.cols) cc.r = 0; takeCar(c.g, c.x, c.z, c.yaw); mode = 'car'; }
+    else if (v.kind === 'mine') { const c = myCars.splice(v.i, 1)[0]; for (const cc of c.cols) cc.r = 0; takeCar(c.g, c.x, c.z, c.yaw, c.moto); mode = 'car'; }
     else if (v.kind === 'traffic') {
       const t = traffic[v.k]; t.taken = true;
-      M.makeScale(0, 0, 0); trafficBody.setMatrixAt(v.k, M); trafficCab.setMatrixAt(v.k, M); trafficWheel.setMatrixAt(v.k * 2, M); trafficWheel.setMatrixAt(v.k * 2 + 1, M);
-      trafficBody.instanceMatrix.needsUpdate = trafficCab.instanceMatrix.needsUpdate = trafficWheel.instanceMatrix.needsUpdate = true;
-      const isTaxi = hex(t.col) === '#f5c518';
-      takeCar(buildCar(hex(t.col), isTaxi), t.x, t.z, Math.atan2(-t.dx, -t.dz)); mode = 'car';
+      for (const m of [trafficBody, trafficCab, motoBody, motoRider, motoHelm]) { m.setMatrixAt(v.k, ZM); m.instanceMatrix.needsUpdate = true; }
+      for (const m of [trafficWheel, motoWheel]) { m.setMatrixAt(v.k * 2, ZM); m.setMatrixAt(v.k * 2 + 1, ZM); m.instanceMatrix.needsUpdate = true; }
+      const yaw = Math.atan2(-t.dx, -t.dz);
+      if (t.moto) takeCar(buildMoto(hex(t.col)), t.x, t.z, yaw, true);
+      else takeCar(buildCar(hex(t.col), hex(t.col) === '#f5c518'), t.x, t.z, yaw);
+      mode = 'car';
     } else {
-      const pc = v.pc; pc.taken = true; for (const cc of pc.cols) cc.r = 0; for (const pm of PARKED_MESH) pm.hide(v.k);
-      takeCar(buildCar(hex(pc.col), false), pc[0], pc[1], pc[2]); mode = 'car';
+      const pc = v.pc; pc.taken = true; for (const cc of pc.cols) cc.r = 0; for (const pm of pc.meshes) pm.hide(pc.idx);
+      if (pc.moto) takeCar(buildMoto(hex(pc.col)), pc[0], pc[1], pc[2] + 0.5, true); else takeCar(buildCar(hex(pc.col), false), pc[0], pc[1], pc[2]);
+      mode = 'car';
     }
     snapCam = true;
   }
@@ -1191,8 +1260,8 @@ function setMode(m) {      // Knöpfe oben: Auto / Helikopter (mit Teleport, wie
     if (from === 'car') parkCar();
     H.x = x; H.z = z; H.y = 9; H.yaw = yaw; H.vx = H.vy = H.vz = H.yawRate = 0; heli.visible = true;
   } else {   // zurück ins Auto: das zuletzt abgestellte Auto holen, bei Heli-Wechsel unter den Heli setzen
-    if (!car) { const c = myCars.pop(); for (const cc of c.cols) cc.r = 0; takeCar(c.g, c.x, c.z, c.yaw); }
-    if (from === 'heli' && !blockedCar(H.x, H.z, H.yaw)) takeCar(car, H.x, H.z, H.yaw);
+    if (!car) { const c = myCars.pop(); for (const cc of c.cols) cc.r = 0; takeCar(c.g, c.x, c.z, c.yaw, c.moto); }
+    if (from === 'heli' && !blockedCar(H.x, H.z, H.yaw, S.moto)) takeCar(car, H.x, H.z, H.yaw, S.moto);
   }
   mode = m; snapCam = true; S.v = 0; updateUI();
 }
@@ -1284,7 +1353,7 @@ function applyQuality(q) {
   sky.scale.setScalar(camera.far * 0.9 / 8000);   // Himmel muss innerhalb der Sichtweite liegen
   postMat.uniforms.far.value = camera.far; camera.updateProjectionMatrix();
   trafficN = Math.min(traffic.length, MOBILE ? 550 : low ? 900 : traffic.length); pedN = Math.min(peds.length, MOBILE ? 400 : low ? 700 : peds.length);
-  trafficBody.count = trafficCab.count = trafficN; trafficWheel.count = trafficN * 2;
+  trafficBody.count = trafficCab.count = motoBody.count = motoRider.count = motoHelm.count = trafficN; trafficWheel.count = motoWheel.count = trafficN * 2;
   pedParts.torso.count = pedParts.head.count = pedN; pedParts.leg.count = pedParts.arm.count = pedN * 2;
 }
 applyQuality(QUALITY);
@@ -1361,15 +1430,16 @@ function frame() {
   let px0, pz0, fx, fz, speed;
 
   if (mode === 'car') {
-    if (gas) S.v += 14 * dt; else if (brk) S.v -= (S.v > 0 ? 28 : 8) * dt; else S.v *= 1 - 0.5 * dt;
-    S.v = Math.max(-8, Math.min(S.v, 30));
+    const acc = S.moto ? 19 : 14, vmax = S.moto ? 40 : 30;
+    if (gas) S.v += acc * dt; else if (brk) S.v -= (S.v > 0 ? 30 : 6) * dt; else S.v *= 1 - 0.5 * dt;
+    S.v = Math.max(S.moto ? -4 : -8, Math.min(S.v, vmax));
     S.steer += (Math.max(-1, Math.min(1, (left ? 1 : 0) - (right ? 1 : 0) - jx)) - S.steer) * Math.min(1, 8 * dt);
-    const nyaw = S.yaw + S.steer * dt * Math.min(1, Math.abs(S.v) / 6) * 1.7 * Math.sign(S.v || 1);
+    const nyaw = S.yaw + S.steer * dt * Math.min(1, Math.abs(S.v) / 6) * (S.moto ? 2.2 : 1.7) * Math.sign(S.v || 1);
     fx = -Math.sin(nyaw); fz = -Math.cos(nyaw);
     const nx = S.x + fx * S.v * dt, nz = S.z + fz * S.v * dt;
-    if (!blockedCar(nx, nz, nyaw)) { S.x = nx; S.z = nz; S.yaw = nyaw; }
-    else if (!blockedCar(nx, S.z, S.yaw)) { S.x = nx; S.v *= 0.9; }
-    else if (!blockedCar(S.x, nz, S.yaw)) { S.z = nz; S.v *= 0.9; }
+    if (!blockedCar(nx, nz, nyaw, S.moto)) { S.x = nx; S.z = nz; S.yaw = nyaw; }
+    else if (!blockedCar(nx, S.z, S.yaw, S.moto)) { S.x = nx; S.v *= 0.9; }
+    else if (!blockedCar(S.x, nz, S.yaw, S.moto)) { S.z = nz; S.v *= 0.9; }
     else S.v *= -0.3;
     fx = -Math.sin(S.yaw); fz = -Math.cos(S.yaw);
     for (let ti = 0; ti < trafficN; ti++) { const t = traffic[ti]; if (t.taken) continue;   // Zusammenstoß mit dem Verkehr
@@ -1377,8 +1447,8 @@ function frame() {
       const along = Math.abs(dx * t.dx + dz * t.dz), side = Math.abs(dx * t.dz - dz * t.dx);
       if (along < 3.6 && side < 1.9) { S.v *= -0.3; S.x += dx * 0.15; S.z += dz * 0.15; }
     }
-    const back = 9 + S.v * 0.08;
-    tgt.set(S.x - fx * back, 3.3 + S.v * 0.03, S.z - fz * back);
+    const back = (S.moto ? 6.5 : 9) + S.v * 0.08;
+    tgt.set(S.x - fx * back, (S.moto ? 2.6 : 3.3) + S.v * 0.03, S.z - fz * back);
     camPos.lerp(tgt, snapCam ? 1 : 1 - Math.pow(0.002, dt)); snapCam = false;
     camera.position.copy(camPos); camera.lookAt(S.x + fx * 8, 2.4, S.z + fz * 8);
     camera.fov = 64 + S.v * 0.3 + portraitFov();
@@ -1431,7 +1501,7 @@ function frame() {
   }
   rotor.rotation.y += dt * 28; tailRotor.rotation.x += dt * 40;
   if (fx3.t > 0 && (fx3.t -= dt) <= 0) fx3.tracer.visible = fx3.flash.visible = fx3.spark.visible = false;
-  if (car) { car.position.set(S.x, 0, S.z); car.rotation.y = S.yaw; }
+  if (car) { car.position.set(S.x, 0, S.z); car.rotation.y = S.yaw; if (S.moto && mode === 'car') car.rotation.z += (S.steer * Math.min(1, Math.abs(S.v) / 12) * 0.45 - car.rotation.z) * Math.min(1, 6 * dt); }
   camera.updateProjectionMatrix();
   sky.position.copy(camera.position);
   updateTraffic(dt, mode === 'foot' ? P.x : S.x, mode === 'foot' ? P.z : S.z, camera.position.x, camera.position.z);
