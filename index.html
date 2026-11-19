@@ -33,11 +33,17 @@
   <div class="btn" id="tb">■</div><div class="btn" id="tg">▲</div>
 </div>
 
-<script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+<script>
+  // Fehler sichtbar machen statt endlos "wird gebaut"
+  function showErr(msg){ const el = document.getElementById('load'); if (el) { el.style.cssText += ';flex-direction:column;gap:8px;padding:16px;text-align:center';
+    el.innerHTML = '<b>Fehler beim Starten</b><span style="font:12px monospace;max-width:90vw;word-break:break-word"></span>'; el.lastChild.textContent = msg; } }
+  addEventListener('error', e => showErr((e.message || 'Skript konnte nicht geladen werden') + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : '')), true);
+  addEventListener('unhandledrejection', e => showErr(String(e.reason && (e.reason.stack || e.reason.message) || e.reason)));
+  setTimeout(() => { if (document.getElementById('load') && !window.__started) showErr('Start dauert ungewöhnlich lange. Browser: ' + navigator.userAgent); }, 15000);
 </script>
 <script type="module">
-import * as THREE from 'three';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+window.__started = false;
 
 /* =====================================================================
    1) RASTER  (vereinfachtes Midtown – echte Kartendaten folgen später)
@@ -195,6 +201,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'h
 renderer.setPixelRatio(1);
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
+renderer.debug.onShaderError = (gl, prog, vs, fs) => showErr('Shader-Fehler: ' + (gl.getShaderInfoLog(fs) || gl.getShaderInfoLog(vs) || gl.getProgramInfoLog(prog)));
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(66, 1, 0.5, 2200);
@@ -486,7 +493,7 @@ function resize() {
   const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false);
   const rw = Math.max(160, Math.floor(w / px)), rh = Math.max(90, Math.floor(h / px));
   if (rt) rt.dispose();
-  rt = new THREE.WebGLRenderTarget(rw, rh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, type: THREE.HalfFloatType });
+  rt = new THREE.WebGLRenderTarget(rw, rh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, type: renderer.extensions.has('EXT_color_buffer_float') ? THREE.HalfFloatType : THREE.UnsignedByteType });
   rt.depthTexture = new THREE.DepthTexture(rw, rh);
   postMat.uniforms.tColor.value = rt.texture; postMat.uniforms.tDepth.value = rt.depthTexture; postMat.uniforms.res.value.set(rw, rh);
   camera.aspect = w / h; camera.updateProjectionMatrix();
@@ -540,7 +547,6 @@ if (params.has('noshadow')) renderer.shadowMap.enabled = false;
 resize();
 const camPos = new THREE.Vector3(S.x + Math.sin(S.yaw) * 10, 4, S.z + Math.cos(S.yaw) * 10);
 const clock = new THREE.Clock(), tgt = new THREE.Vector3();
-document.getElementById('load').remove();
 
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -574,6 +580,7 @@ function frame() {
   document.getElementById('street').textContent = streetName(S.x, S.z);
   renderer.setRenderTarget(rt); renderer.render(scene, camera);
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+  if (!window.__started) { window.__started = true; const l = document.getElementById('load'); if (l && !l.querySelector('b')) l.remove(); }
   requestAnimationFrame(frame);
 }
 frame();
