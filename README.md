@@ -2,32 +2,38 @@
 
 Manhattan als frei befahrbare Open World im Pixel-Art-Stil, im Browser.
 
-## Aktueller Stand: Look-Prototyp (Tag)
+## Aktueller Stand: echtes Manhattan aus OpenStreetMap
 
-- 3D-Stadt, die mit niedriger Auflösung gerendert und dann pixelig hochskaliert wird (Pixel-Art-Look mit Konturen und leichtem Dithering)
-- Realistische Oberflächen: Backstein (mit Feuertreppen), Kalkstein, Art déco, Beton, Glasfassaden, Läden im Erdgeschoss
-- Sonne mit Schatten, Dunst in der Ferne, Bäume, parkende Autos, Ampelmasten, Wassertürme auf den Dächern
-- Mit einem gelben Taxi durch die Straßenschluchten fahren oder mit dem Helikopter darüber fliegen (Taste H oder Knopf oben)
-- Fließender Verkehr, Fußgänger, grüne Straßenschilder an jeder Kreuzung, U-Bahn-Eingänge, Straßenlaternen, Hydranten
-- Stadt als Insel mit Wasser rundherum und Ufer-Silhouetten am Horizont (ca. 2,5 × 4 km)
-
-**Wichtig:** Straßenraster und Gebäude sind in diesem Prototyp noch *ausgedacht* (Midtown-ähnlich).
-Der nächste große Schritt ist die echte 1:1-Stadt aus OpenStreetMap und den NYC-Gebäudedaten.
+- **Echte Stadt:** rund 56.000 Gebäude mit echten Grundrissen und Höhen, 14.600 Straßenzüge mit echten Namen, Spurenzahl und Einbahnregelung, Parks (z. B. Central Park), Teiche, Uferlinie
+- 3D-Stadt, die mit niedriger Auflösung gerendert und pixelig hochskaliert wird (Konturen, leichtes Dithering)
+- Fassaden (Backstein mit Feuertreppen, Kalkstein, Art déco, Beton, Glas) werden je nach Höhe und Gebäudeart gewählt
+- Fließender Verkehr und Fußgänger entlang der echten Straßen, grüne Straßenschilder an den echten Kreuzungen
+- Taxi und Helikopter, Sonne mit Schatten, weite Sicht
 
 ## Steuerung
 
 | Taste | Funktion |
 |---|---|
-| W / ↑ | Gas |
+| W / ↑ | Gas (Helikopter: vorwärts) |
 | S / ↓ | Bremse / Rückwärts |
-| A D / ← → | Lenken |
+| A D / ← → | Lenken / Drehen |
 | H | Zwischen Taxi und Helikopter wechseln |
 | Leertaste / E | Helikopter: steigen |
 | Shift / Q | Helikopter: sinken |
 | + / − | Pixelgröße ändern (auch per Knopf oben) |
 
-Am Handy erscheinen Touch-Knöpfe.
+## Daten neu erzeugen
+
+```
+pip install shapely osmium
+curl -o tools/cache/NewYork.osm.pbf https://download.bbbike.org/osm/bbbike/NewYork/NewYork.osm.pbf
+python3 tools/build_manhattan.py      # schreibt data/manhattan.json
+```
 
 ## Starten
 
-`index.html` in einem Browser öffnen (braucht Internet für die 3D-Bibliothek three.js).
+Die Seite lädt `data/manhattan.json` nach, braucht also einen kleinen Webserver, z. B. `python3 -m http.server` im Projektordner, dann http://localhost:8000 öffnen.
+
+## Lizenz der Kartendaten
+
+Kartendaten © OpenStreetMap-Mitwirkende, verfügbar unter der Open Database License (ODbL): https://www.openstreetmap.org/copyright
